@@ -10,8 +10,6 @@ services:
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d
       - ./db/data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_PASSWORD}"]
       interval: 10s
@@ -20,14 +18,14 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  accural:
+  accrual:
     build:
       context: ./..
       dockerfile: deployments/accrual/Dockerfile
     depends_on:
       - postgres
     environment:
-      - ACCRUAL_ADDRESS=localhost:8080
+      - ACCRUAL_ADDRESS=localhost:${ACCRUAL_PORT}
       - DSN='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/accrual?sslmode=disable'
     restart: always
 
@@ -35,10 +33,12 @@ services:
       build:
         context: ./..
         dockerfile: deployments/gophermart/Dockerfile
+      ports:
+        - ${GOPHERMART_PORT}:${GOPHERMART_PORT}
       depends_on:
         - postgres
       environment:
-        - RUN_ADDRESS=${RUN_ADDRESS}
+        - GOPHERMART_PORT=${GOPHERMART_PORT}
         - DATABASE_URI='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gophermart?sslmode=disable'
-        - ACCRUAL_SYSTEM_ADDRESS=accural:8080
+        - ACCRUAL_SYSTEM_ADDRESS=accrual:${ACCRUAL_PORT}
       restart: always

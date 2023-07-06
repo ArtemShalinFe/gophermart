@@ -1,14 +1,24 @@
 package server
 
+import (
+	"net/http"
+)
+
 type Handlers struct {
 	store string
 }
 
-// func NewHandlers(s *store.DB) *Handlers {
-// 	return &Handlers{
-// 		store: s,
-// 	}
-// }
+func NewHandlers() *Handlers {
+	return &Handlers{
+		store: "",
+	}
+}
+
+func (h *Handlers) Ping(w http.ResponseWriter) {
+
+	w.WriteHeader(http.StatusOK)
+
+}
 
 // func (h *Handlers) PutEmployee(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 // 	b, err := io.ReadAll(r.Body)

@@ -1,19 +1,25 @@
-FROM golang:1.20 AS build
+FROM golang:1.20.2 AS build-stage
 
-WORKDIR /usr/src/gophermart
+WORKDIR /app
+
 COPY . .
 
 RUN go mod download && go mod verify
 
-RUN go build -C ./cmd/gophermart -o /usr/local/bin/gophermart
+RUN go build -C ./cmd/gophermart -o /gophermart
 
-FROM golang:1.20-alpine
+FROM gcr.io/distroless/base-debian11
 
-ENV RUN_ADDRESS=${RUN_ADDRESS}
+WORKDIR /
+
+ENV RUN_ADDRESS=localhost:${GOPHERMART_PORT}
 ENV DATABASE_URI=${DATABASE_URI}
 ENV ACCRUAL_SYSTEM_ADDRESS=${ACCRUAL_SYSTEM_ADDRESS}
 
-COPY --from=build /usr/local/bin/gophermart /app/gophermart
-RUN chmod +x /app/gophermart
+EXPOSE ${GOPHERMART_PORT}
 
-CMD /app/gophermart
+COPY --from=build-stage /gophermart /gophermart
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["/gophermart"]

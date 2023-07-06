@@ -3,13 +3,14 @@ package server
 import (
 	"net/http"
 
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/config"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )
 
-func InitServer(h *Handlers) *http.Server {
+func InitServer(h *Handlers, cfg *config.Config) *http.Server {
 	return &http.Server{
-		Addr:    ":8080",
+		Addr:    cfg.Address,
 		Handler: initRouter(h),
 	}
 }
@@ -20,11 +21,7 @@ func initRouter(h *Handlers) *chi.Mux {
 	router.Use(middleware.Recoverer)
 
 	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-
-		// rctx := r.Context()
-
-		// handlers.Ping(rctx, w)
-
+		h.Ping(w)
 	})
 
 	return router
