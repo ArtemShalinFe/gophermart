@@ -15,6 +15,7 @@
 cmd/gophermart/main
 cmd/gophermart/gophermart
 .DS_Store
+gophermart
 
 # Dependency directories (remove the comment below to include it)
 vendor/
