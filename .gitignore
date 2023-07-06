@@ -14,6 +14,7 @@
 # Binaries
 cmd/gophermart/main
 cmd/gophermart/gophermart
+.DS_Store
 
 # Dependency directories (remove the comment below to include it)
 vendor/
@@ -22,4 +23,8 @@ vendor/
 .idea
 .vscode
 
+# Lint
 golangci-lint
+
+# DB data
+deployments/db/data
