@@ -11,7 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/config"
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/db"
 	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/server"
 )
 
@@ -25,7 +28,6 @@ func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-	log.Println("bye-bye")
 
 }
 
@@ -34,11 +36,17 @@ func run() (err error) {
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelCtx()
 
+	zl, err := zap.NewProduction()
+	if err != nil {
+		return fmt.Errorf("cannot init zap-logger err: %w ", err)
+	}
+
 	cfg := config.GetConfig()
-	// db, err := store.NewDB(ctx, cfg.DSN)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to initialize a new DB: %w", err)
-	// }
+	log.Printf("config %+v", cfg)
+	db, err := db.NewDB(ctx, cfg.DSN)
+	if err != nil {
+		return fmt.Errorf("failed to initialize a new DB: %w", err)
+	}
 
 	wg := &sync.WaitGroup{}
 	defer func() {
@@ -56,10 +64,14 @@ func run() (err error) {
 
 	componentsErrs := make(chan error, 1)
 
-	h := server.NewHandlers()
-	srv := server.InitServer(h, cfg)
+	h, err := server.NewHandlers(cfg.Key, db, zl)
+	if err != nil {
+		log.Printf("handler init err: %v", err)
+	}
+
+	srv := server.InitServer(h, cfg, zl)
 	go func(errs chan<- error) {
-		if err := srv.ListenAndServe(); err != nil {
+		if err := srv.HttpServer.ListenAndServe(); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				return
 			}
@@ -75,7 +87,7 @@ func run() (err error) {
 
 		shutdownTimeoutCtx, cancelShutdownTimeoutCtx := context.WithTimeout(context.Background(), timeoutServerShutdown)
 		defer cancelShutdownTimeoutCtx()
-		if err := srv.Shutdown(shutdownTimeoutCtx); err != nil {
+		if err := srv.HttpServer.Shutdown(shutdownTimeoutCtx); err != nil {
 			log.Printf("an error occurred during server shutdown: %v", err)
 		}
 	}()

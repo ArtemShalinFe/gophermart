@@ -1,65 +1,207 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"strconv"
+
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/models"
+	"go.uber.org/zap"
 )
 
+type Storage interface {
+	AddUser(ctx context.Context, us *models.UserDTO) (*models.User, error)
+	GetUser(ctx context.Context, us *models.UserDTO) (*models.User, error)
+	GetUploadedOrders(ctx context.Context, order *models.User) ([]*models.Order, error)
+	AddOrder(ctx context.Context, order *models.OrderDTO) (*models.Order, error)
+	GetOrder(ctx context.Context, order *models.OrderDTO) (*models.Order, error)
+}
+
 type Handlers struct {
-	store string
+	log       *zap.Logger
+	store     Storage
+	secretKey []byte
 }
 
-func NewHandlers() *Handlers {
+func NewHandlers(secretKey []byte, db Storage, log *zap.Logger) (*Handlers, error) {
+
 	return &Handlers{
-		store: "",
-	}
+		store:     db,
+		secretKey: secretKey,
+		log:       log,
+	}, nil
+
 }
 
-func (h *Handlers) Ping(w http.ResponseWriter) {
+func (h *Handlers) Register(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	u, err := getLoginPsw(w, r)
+	if err != nil {
+		h.log.Error("failed to read the Register request body: ", zap.Error(err))
+		return
+	}
+
+	u.Password = models.EncodePassword(u.Password)
+
+	if _, err = u.AddUser(ctx, h.store); err != nil {
+
+		if errors.Is(err, models.ErrLoginIsBusy) {
+			w.WriteHeader(http.StatusConflict)
+			return
+		} else {
+			h.log.Error("failed in the Register request: ", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+	}
+
+	token, err := NewJWTToken(h.secretKey, u.Login, u.Password)
+	if err != nil {
+		h.log.Error("failed to build JWT token in the Register request: ", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Authorization", token)
 
 	w.WriteHeader(http.StatusOK)
 
 }
 
-// func (h *Handlers) PutEmployee(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-// 	b, err := io.ReadAll(r.Body)
-// 	if err != nil {
-// 		log.Printf("failed to read the PutEmployee request body: %v", err)
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		return
-// 	}
-// 	var emp model.Employee
-// 	if err := json.Unmarshal(b, &emp); err != nil {
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		return
-// 	}
+func (h *Handlers) Login(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
-// 	if err := h.store.PutEmployee(ctx, &emp); err != nil {
-// 		log.Printf("failed to store employee in the DB: %v", err)
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		return
-// 	}
+	u, err := getLoginPsw(w, r)
+	if err != nil {
+		h.log.Error("failed to read the Register request body: ", zap.Error(err))
+		return
+	}
 
-// 	w.WriteHeader(http.StatusCreated)
-// }
+	user, err := u.GetUser(ctx, h.store)
+	if err != nil {
+		if errors.Is(err, models.ErrUnknowUser) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 
-// func (h *Handlers) GetEmployeeByEmail(ctx context.Context, w http.ResponseWriter, email string) {
-// 	emp, err := h.store.GetEmployeeByEmail(ctx, email)
-// 	if err != nil {
-// 		if errors.Is(err, store.ErrEmployeeNotFound) {
-// 			w.WriteHeader(http.StatusNotFound)
-// 			return
-// 		}
-// 		log.Printf("failed to get employee by email: %v", err)
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		return
-// 	}
+		h.log.Error("failed in the Register request: ", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
-// 	data, err := json.Marshal(emp)
-// 	if err != nil {
-// 		log.Printf("failed to marshal the retrieved employee: %v", err)
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		return
-// 	}
-// 	w.WriteHeader(http.StatusOK)
-// 	_, _ = w.Write(data)
-// }
+	u.Password = models.EncodePassword(u.Password)
+	if user.PasswordBase64 != u.Password {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	token, err := NewJWTToken(h.secretKey, u.Login, u.Password)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Authorization", token)
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+func (h *Handlers) AddOrder(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	u, err := h.GetUserFromJWTToken(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Error("failed to get user from JWT in the AddOrder request: ", zap.Error(err))
+		return
+	}
+
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Error("failed to read the AddOrder request body: ", zap.Error(err))
+		return
+	}
+
+	number, err := strconv.ParseInt(string(b), 0, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Error("failed to convert in the AddOrder request: ", zap.Error(err))
+		return
+	}
+
+	o := &models.OrderDTO{
+		Number: number,
+		UserId: u.Id,
+	}
+
+	if _, err = o.AddOrder(ctx, h.store); err != nil {
+
+		if !errors.Is(err, models.ErrOrderWasRegisteredEarlier) {
+			w.WriteHeader(http.StatusBadRequest)
+			h.log.Error("failed to add order in the AddOrder request: ", zap.Error(err))
+			return
+		}
+
+		o, err := o.GetOrder(ctx, h.store)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			h.log.Error("failed to get the order the AddOrder request body: ", zap.Error(err))
+			return
+		}
+
+		if o.UserId != u.Id {
+			w.WriteHeader(http.StatusConflict)
+			return
+		} else {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *Handlers) GetOrders(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	h.log.Info("GetOrders not implemented")
+}
+
+func (h *Handlers) GetBalance(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	h.log.Info("GetBalance not implemented")
+}
+
+func (h *Handlers) AddBalanceWithdraw(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	h.log.Info("AddBalanceWithdraw not implemented")
+}
+
+func (h *Handlers) GetWithdrawals(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	h.log.Info("GetWithdrawals not implemented")
+}
+
+func getLoginPsw(w http.ResponseWriter, r *http.Request) (*models.UserDTO, error) {
+
+	var u models.UserDTO
+
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil, err
+	}
+
+	if err := json.Unmarshal(b, &u); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, err
+	}
+
+	if u.Login == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, errors.New("bad request")
+	}
+
+	return &u, nil
+
+}

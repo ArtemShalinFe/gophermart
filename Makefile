@@ -9,7 +9,6 @@ build:
 	go build -C ./cmd/gophermart -o $(shell pwd)/cmd/gophermart/gophermart
 
 # TESTS
-
 .PHONY: tests
 tests: build
 	go test ./... -v -race
@@ -18,11 +17,11 @@ tests: build
             -gophermart-binary-path=cmd/gophermart/gophermart \
             -gophermart-host=localhost \
             -gophermart-port=8078 \
-            -gophermart-database-uri="postgresql://postgres:postgres@postgres/praktikum?sslmode=disable" \
+            -gophermart-database-uri="postgresql://gopher:gopher@localhost:5432/gophermart?sslmode=disable" \
             -accrual-binary-path=cmd/accrual/accrual_darwin_arm64 \
             -accrual-host=localhost \
             -accrual-port=8080 \
-            -accrual-database-uri="postgresql://postgres:postgres@postgres/praktikum?sslmode=disable"
+            -accrual-database-uri="postgresql://gopher:gopher@localhost:5432/accrual?sslmode=disable"
 
 .PHONY: lint
 lint:
@@ -36,14 +35,13 @@ lint:
     > ./golangci-lint/report-unformatted.json | jq > ./golangci-lint/report.json | rm ./golangci-lint/report-unformatted.json
 
 # POSTGRESQL
-
-.PHONY: pg
+.PHONY: run-pg
 run-pg:
 	docker run --rm \
 		--name=postgresql \
-		-v $(abspath ./db/init/):/docker-entrypoint-initdb.d \
-		-v $(abspath ./db/data/):/var/lib/postgresql/data \
-		-e POSTGRES_PASSWORD="gopher" \
+		-v $(abspath ./deployments/db/init/):/docker-entrypoint-initdb.d \
+		-v $(abspath ./deployments/db/data/):/var/lib/postgresql/data \
+		-e POSTGRES_PASSWORD=gopher \
 		-d \
 		-p 5432:5432 \
 		postgres:15.3
@@ -54,4 +52,9 @@ stop-pg:
 
 .PHONY: clean-data
 clean-data:
-	sudo rm -rf ./db/data/
+	sudo rm -rf ./deployments/db/data/
+
+# MOCKS
+.PHONY: mocks
+mocks:
+	mockgen -source=cmd/gophermart/internal/server/handlers.go -destination=cmd/gophermart/internal/server/mock_handlers.go -package server 

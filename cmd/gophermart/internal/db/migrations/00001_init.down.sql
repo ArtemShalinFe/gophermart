@@ -1,0 +1,9 @@
+BEGIN TRANSACTION;
+
+DROP TABLE CurrentBalances;
+DROP TABLE Balances;
+DROP TABLE OrdersStatus;
+DROP TABLE Orders;
+DROP TABLE Users;
+
+COMMIT;
