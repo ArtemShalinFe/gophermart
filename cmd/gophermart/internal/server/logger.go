@@ -26,8 +26,8 @@ func (h *Handlers) RequestLogger(hr http.Handler) http.Handler {
 		hr.ServeHTTP(rw, r)
 		duration := time.Since(start)
 
-		h.log.Infof("HTTP request method: %s, header: %v, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
-			r.Method, r.Header, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
+		h.log.Infof("HTTP request method: %s, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
+			r.Method, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
 		)
 	})
 }

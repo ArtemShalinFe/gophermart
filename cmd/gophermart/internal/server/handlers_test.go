@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 )
 
 func TestRegisterHandler(t *testing.T) {
@@ -233,24 +232,24 @@ func TestAddOrderHandler(t *testing.T) {
 	var test = "test"
 
 	o1Dto := &models.OrderDTO{
-		Number: 1,
+		Number: "49927398716",
 		UserID: "1",
 	}
 
 	o2Dto := &models.OrderDTO{
-		Number: 2,
+		Number: "1234567812345670",
 		UserID: "1",
 	}
 
 	o3Dto := &models.OrderDTO{
-		Number: 3,
+		Number: "4026843483168683",
 		UserID: "2",
 	}
 
 	o1 := &models.Order{
 		ID:         "1",
 		UserID:     "1",
-		Number:     1,
+		Number:     "49927398716",
 		Status:     "NEW",
 		Accrual:    0,
 		UploadedAt: time.Now(),
@@ -259,7 +258,7 @@ func TestAddOrderHandler(t *testing.T) {
 	o2 := &models.Order{
 		ID:         "2",
 		UserID:     "1",
-		Number:     1,
+		Number:     "1234567812345670",
 		Status:     "NEW",
 		Accrual:    0,
 		UploadedAt: time.Now(),
@@ -268,7 +267,7 @@ func TestAddOrderHandler(t *testing.T) {
 	o3 := &models.Order{
 		ID:         "3",
 		UserID:     "1",
-		Number:     1,
+		Number:     "4026843483168683",
 		Status:     "NEW",
 		Accrual:    0,
 		UploadedAt: time.Now(),
@@ -345,7 +344,7 @@ func TestAddOrderHandler(t *testing.T) {
 			status:  401,
 			method:  http.MethodPost,
 			authReq: nil,
-			body:    1,
+			body:    49927398716,
 		},
 		{
 			name:    "Add first order",
@@ -353,7 +352,7 @@ func TestAddOrderHandler(t *testing.T) {
 			status:  202,
 			method:  http.MethodPost,
 			authReq: &models.UserDTO{Login: test, Password: test},
-			body:    1,
+			body:    49927398716,
 		},
 		{
 			name:    "Add same order",
@@ -361,7 +360,7 @@ func TestAddOrderHandler(t *testing.T) {
 			status:  200,
 			method:  http.MethodPost,
 			authReq: &models.UserDTO{Login: test, Password: test},
-			body:    2,
+			body:    1234567812345670,
 		},
 		{
 			name:    "Add added order",
@@ -369,7 +368,7 @@ func TestAddOrderHandler(t *testing.T) {
 			status:  409,
 			method:  http.MethodPost,
 			authReq: &models.UserDTO{Login: "test2", Password: "test2"},
-			body:    3,
+			body:    4026843483168683,
 		},
 	}
 
@@ -393,6 +392,110 @@ func TestAddOrderHandler(t *testing.T) {
 		require.Equal(t, v.status, resp.StatusCode,
 			fmt.Sprintf("TestAddOrderHandler: %s URL: %s, want: %d, have: %d",
 				v.name, v.url, v.status, resp.StatusCode))
+	}
+}
+
+func TestGetOrdersHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+
+	var test = "test"
+
+	o1 := &models.Order{
+		ID:         "1",
+		UserID:     "1",
+		Number:     "49927398716",
+		Status:     "NEW",
+		Accrual:    0,
+		UploadedAt: time.Now(),
+	}
+
+	var ors []*models.Order
+	ors = append(ors, o1)
+
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: models.EncodePassword(test),
+	}
+
+	u1 := &models.User{
+		ID:             "1",
+		Login:          test,
+		PasswordBase64: models.EncodePassword(test),
+	}
+
+	mr := db.EXPECT()
+
+	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
+	mr.GetUploadedOrders(gomock.Any(), u1).AnyTimes().Return(ors, nil)
+
+	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar())
+	if err != nil {
+		t.Error(err)
+	}
+	r := initRouter(h)
+
+	testServer := httptest.NewServer(r)
+	defer testServer.Close()
+
+	var tests = []struct {
+		authReq         any
+		body            any
+		name            string
+		url             string
+		method          string
+		status          int
+		wantOrdersCount int
+	}{
+		{
+			name:    "Get orders unauthorized",
+			url:     "/api/user/orders",
+			status:  401,
+			method:  http.MethodGet,
+			authReq: nil,
+		},
+		{
+			name:            "Get orders",
+			url:             "/api/user/orders",
+			status:          200,
+			method:          http.MethodGet,
+			authReq:         &models.UserDTO{Login: test, Password: test},
+			wantOrdersCount: 1,
+		},
+	}
+
+	for _, v := range tests {
+		v := v
+
+		b, err := json.Marshal(v.body)
+		if err != nil {
+			t.Error(err)
+		}
+
+		resp, bytes := testRequest(t,
+			testServer,
+			v.method,
+			v.url,
+			GetAuthorizationToken(t, testServer, v.authReq),
+			bytes.NewBuffer(b))
+
+		require.Equal(t, v.status, resp.StatusCode,
+			fmt.Sprintf("TestGetOrdersHandler status code: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
+
+		if resp.StatusCode == http.StatusOK {
+			var os []*models.Order
+
+			if err := json.Unmarshal(bytes, &os); err != nil {
+				t.Error(err)
+			}
+
+			require.Equal(t, v.wantOrdersCount, len(os),
+				fmt.Sprintf("TestGetOrdersHandler len orders: %s URL: %s, want: %d, have: %d",
+					v.name, v.url, v.status, resp.StatusCode))
+		}
 	}
 }
 

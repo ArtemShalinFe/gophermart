@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 	"go.uber.org/zap"
@@ -112,16 +111,14 @@ func (h *Handlers) AddOrder(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	number, err := strconv.ParseInt(string(b), 0, 64)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		h.log.Errorf("failed to convert in the AddOrder request err: %w ", err)
-		return
+	o := &models.OrderDTO{
+		Number: string(b),
+		UserID: u.ID,
 	}
 
-	o := &models.OrderDTO{
-		Number: number,
-		UserID: u.ID,
+	if !o.NumberIsCorrect() {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		return
 	}
 
 	if _, err = o.AddOrder(ctx, h.store); err != nil {
@@ -151,7 +148,34 @@ func (h *Handlers) AddOrder(ctx context.Context, w http.ResponseWriter, r *http.
 }
 
 func (h *Handlers) GetOrders(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	h.log.Info("GetOrders not implemented")
+	u, err := h.GetUserFromJWTToken(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed to get user from JWT in the AddOrder request err: %w ", err)
+		return
+	}
+
+	os, err := u.GetUploadedOrders(ctx, h.store)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("get uploaded orders err: %w", err)
+		return
+	}
+
+	b, err := json.Marshal(os)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("GetOrders marshal to json err: %w", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if _, err = w.Write(b); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("GetMetric error: %w", err)
+		return
+	}
 }
 
 func (h *Handlers) GetBalance(ctx context.Context, w http.ResponseWriter, r *http.Request) {

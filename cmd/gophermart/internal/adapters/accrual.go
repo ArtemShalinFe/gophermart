@@ -60,7 +60,7 @@ func Backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.D
 }
 
 func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*models.OrderAccrual, error) {
-	url, err := url.JoinPath("/api/orders/", strconv.FormatInt(order.Number, 36))
+	url, err := url.JoinPath("/api/orders/", order.Number)
 	if err != nil {
 		return nil, fmt.Errorf("failed build url err: %w", err)
 	}

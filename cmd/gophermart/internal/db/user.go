@@ -86,7 +86,7 @@ func (db *DB) GetUploadedOrders(ctx context.Context, u *models.User) ([]*models.
 	defer tx.Rollback(ctx)
 
 	sql := `
-	SELECT id, uploaded, number, sum, status,
+	SELECT id, uploaded, number, sum, status
 	FROM orders
 	WHERE userId = $1
 	ORDER BY uploaded DESC;`
