@@ -481,6 +481,8 @@ func TestGetOrdersHandler(t *testing.T) {
 			GetAuthorizationToken(t, testServer, v.authReq),
 			bytes.NewBuffer(b))
 
+		defer resp.Body.Close()
+
 		require.Equal(t, v.status, resp.StatusCode,
 			fmt.Sprintf("TestGetOrdersHandler status code: %s URL: %s, want: %d, have: %d",
 				v.name, v.url, v.status, resp.StatusCode))
