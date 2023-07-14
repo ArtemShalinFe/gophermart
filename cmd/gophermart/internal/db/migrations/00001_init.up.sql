@@ -15,7 +15,7 @@ CREATE TABLE Orders(
     uploaded timestamp with time zone,
     number numeric unique not null,
     userId uuid not NULL,
-    sum integer NOT null,
+    sum double precision NOT null,
     status VARCHAR(16) not null,
     
     primary key (id),

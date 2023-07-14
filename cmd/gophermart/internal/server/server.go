@@ -1,13 +1,19 @@
 package server
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"go.uber.org/zap"
 
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/adapters"
 	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/config"
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 )
 
 type Server struct {
@@ -15,14 +21,19 @@ type Server struct {
 	Log        *zap.SugaredLogger
 }
 
-func InitServer(h *Handlers, cfg *config.Config, log *zap.SugaredLogger) *Server {
-	return &Server{
+func InitServer(ctx context.Context, h *Handlers, cfg *config.Config, log *zap.SugaredLogger, db Storage) *Server {
+	s := &Server{
 		HTTPServer: &http.Server{
 			Addr:    cfg.Address,
 			Handler: initRouter(h),
 		},
 		Log: log,
 	}
+
+	a := adapters.NewAccrualClient(cfg)
+	go s.RunOrderAccruals(ctx, a, db)
+
+	return s
 }
 
 func initRouter(h *Handlers) *chi.Mux {
@@ -64,4 +75,61 @@ func initRouter(h *Handlers) *chi.Mux {
 		})
 	})
 	return router
+}
+
+func (s *Server) RunOrderAccruals(ctx context.Context, a models.AccrualService, db Storage) error {
+	ticker := time.NewTicker(time.Duration(200 * time.Millisecond))
+
+	errs := make(chan error, 1)
+	orders := make(chan *models.Order, 10)
+
+	go func(ctx context.Context, orders chan<- *models.Order, errs chan<- error) {
+		for {
+			ors, err := models.GetOrdersForAccrual(ctx, db)
+			if err != nil {
+				errs <- fmt.Errorf("failed get orders for accrual err: %w", err)
+				continue
+			}
+
+			for _, o := range ors {
+				orders <- o
+			}
+
+			select {
+			case <-ctx.Done():
+			case <-ticker.C:
+			}
+		}
+	}(ctx, orders, errs)
+
+	go func(ctx context.Context, orders <-chan *models.Order, errs chan<- error) {
+		for o := range orders {
+			a, err := a.GetOrderAccrual(ctx, o)
+			if err != nil {
+				if !errors.Is(err, adapters.ErrOrderNotRegistered) {
+					errs <- fmt.Errorf("get order accrual failed err: %w", err)
+				}
+				continue
+			}
+
+			o.Status = a.Status
+			o.Accrual = a.Accrual
+
+			if err := o.Update(ctx, db); err != nil {
+				errs <- fmt.Errorf("update order failed err: %w", err)
+			}
+		}
+	}(ctx, orders, errs)
+
+	go func(ctx context.Context, errs <-chan error) {
+		for {
+			select {
+			case <-ctx.Done():
+			case err := <-errs:
+				s.Log.Errorf("failed to run order accruals err: %w", err)
+			}
+		}
+	}(ctx, errs)
+
+	return nil
 }

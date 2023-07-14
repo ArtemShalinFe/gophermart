@@ -24,7 +24,7 @@ type Accrual struct {
 
 var ErrOrderNotRegistered = errors.New("the order is not registered in the payment system")
 
-func NewAccrualClient(cfg *config.Config, logger retryablehttp.LeveledLogger) *Accrual {
+func NewAccrualClient(cfg *config.Config) *Accrual {
 	retryClient := retryablehttp.NewClient()
 	retryClient.CheckRetry = CheckRetry
 	retryClient.Backoff = Backoff
@@ -36,6 +36,11 @@ func NewAccrualClient(cfg *config.Config, logger retryablehttp.LeveledLogger) *A
 }
 
 func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+
+	if resp == nil {
+		return false, err
+	}
+
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return true, nil
 	}
@@ -60,12 +65,12 @@ func Backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.D
 }
 
 func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*models.OrderAccrual, error) {
-	url, err := url.JoinPath("/api/orders/", order.Number)
+	url, err := url.JoinPath(a.host, "/api/orders/", order.Number)
 	if err != nil {
 		return nil, fmt.Errorf("failed build url err: %w", err)
 	}
 
-	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed build accrual request err: %w", err)
 	}

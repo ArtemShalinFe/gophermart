@@ -52,7 +52,7 @@ stop-pg:
 
 .PHONY: clean-data
 clean-data:
-	sudo rm -rf ./deployments/db/data/
+	sudo rm -rf ./deployments/db/data/	
 
 # MOCKS
 .PHONY: mocks

@@ -22,7 +22,7 @@ type Order struct {
 	UserID     string    `json:"userId,omitempty"`
 	Status     string    `json:"status"`
 	Number     string    `json:"number"`
-	Accrual    int64     `json:"accrual"`
+	Accrual    float64   `json:"accrual"`
 }
 
 type OrderStorage interface {
@@ -67,4 +67,8 @@ func (o *OrderDTO) NumberIsCorrect() bool {
 
 func (o *Order) Update(ctx context.Context, db OrderStorage) error {
 	return db.UpdateOrder(ctx, o)
+}
+
+func GetOrdersForAccrual(ctx context.Context, db OrderStorage) ([]*Order, error) {
+	return db.GetOrdersForAccrual(ctx)
 }

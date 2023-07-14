@@ -86,9 +86,9 @@ func (db *DB) GetOrdersForAccrual(ctx context.Context) ([]*models.Order, error) 
 	defer tx.Rollback(ctx)
 
 	sql := `
-	SELECT id, userid, uploaded, number, sum, status,
+	SELECT id, userid, uploaded, number, sum, status
 	FROM orders
-	WHERE status IN (%1, %2)
+	WHERE status IN ($1, $2)
 	ORDER BY uploaded DESC
 	LIMIT 10;`
 
@@ -124,11 +124,11 @@ func (db *DB) UpdateOrder(ctx context.Context, order *models.Order) error {
 	sql := `
 	UPDATE orders
 	SET
-		uploaded = %2, 
-		number = %3, 
-		userid = %4,
-		sum = %5, 
-		status = %6
+		uploaded = $2, 
+		number = $3, 
+		userid = $4,
+		sum = $5, 
+		status = $6
 	WHERE
 		id = $1
 	;`

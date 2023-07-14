@@ -87,7 +87,7 @@ func run() (err error) {
 	}
 
 	// Init and run Server
-	srv := server.InitServer(h, cfg, log)
+	srv := server.InitServer(ctx, h, cfg, log, db)
 	go func(errs chan<- error) {
 		if err := srv.HTTPServer.ListenAndServe(); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
