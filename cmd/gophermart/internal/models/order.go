@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -68,27 +67,4 @@ func (o *OrderDTO) NumberIsCorrect() bool {
 
 func (o *Order) Update(ctx context.Context, db OrderStorage) error {
 	return db.UpdateOrder(ctx, o)
-}
-
-func RunOrdersAccrual(ctx context.Context, a AccrualService, db OrderStorage) error {
-	ors, err := db.GetOrdersForAccrual(ctx)
-	if err != nil {
-		return fmt.Errorf("get orders for accrual failed err: %w", err)
-	}
-
-	for _, o := range ors {
-		oa, err := a.GetOrderAccrual(ctx, o)
-		if err != nil {
-			return fmt.Errorf("get order accrual failed err: %w", err)
-		}
-
-		o.Status = oa.Status
-		o.Accrual = oa.Accrual
-
-		if err := o.Update(ctx, db); err != nil {
-			return fmt.Errorf("update order failed err: %w", err)
-		}
-	}
-
-	return nil
 }

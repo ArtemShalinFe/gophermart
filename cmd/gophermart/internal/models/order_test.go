@@ -3,7 +3,6 @@ package models
 import "testing"
 
 func TestOrderDTONumberIsCorrect(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		number string

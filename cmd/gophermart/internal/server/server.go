@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -65,8 +64,4 @@ func initRouter(h *Handlers) *chi.Mux {
 		})
 	})
 	return router
-}
-
-func (s *Server) RunOrderAccruals(ctx context.Context) error {
-	return nil
 }
