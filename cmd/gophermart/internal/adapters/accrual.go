@@ -76,11 +76,7 @@ func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*mo
 		return nil, fmt.Errorf("failed exec accrual request err: %w", err)
 	}
 
-	defer func() {
-		if errS := resp.Body.Close(); errS != nil {
-			err = errors.Join(err, errS)
-		}
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNoContent {
 		return nil, ErrOrderNotRegistered
