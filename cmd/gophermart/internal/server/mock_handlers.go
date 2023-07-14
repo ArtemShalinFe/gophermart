@@ -8,7 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	models "github.com/ArtemShalinFe/gophermart/cmd/gophermart/models"
+	models "github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -80,6 +80,21 @@ func (mr *MockStorageMockRecorder) GetOrder(ctx, order interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrder", reflect.TypeOf((*MockStorage)(nil).GetOrder), ctx, order)
 }
 
+// GetOrdersForAccrual mocks base method.
+func (m *MockStorage) GetOrdersForAccrual(ctx context.Context) ([]*models.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrdersForAccrual", ctx)
+	ret0, _ := ret[0].([]*models.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrdersForAccrual indicates an expected call of GetOrdersForAccrual.
+func (mr *MockStorageMockRecorder) GetOrdersForAccrual(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrdersForAccrual", reflect.TypeOf((*MockStorage)(nil).GetOrdersForAccrual), ctx)
+}
+
 // GetUploadedOrders mocks base method.
 func (m *MockStorage) GetUploadedOrders(ctx context.Context, order *models.User) ([]*models.Order, error) {
 	m.ctrl.T.Helper()
@@ -108,4 +123,18 @@ func (m *MockStorage) GetUser(ctx context.Context, us *models.UserDTO) (*models.
 func (mr *MockStorageMockRecorder) GetUser(ctx, us interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockStorage)(nil).GetUser), ctx, us)
+}
+
+// UpdateOrder mocks base method.
+func (m *MockStorage) UpdateOrder(ctx context.Context, order *models.Order) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrder", ctx, order)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateOrder indicates an expected call of UpdateOrder.
+func (mr *MockStorageMockRecorder) UpdateOrder(ctx, order interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockStorage)(nil).UpdateOrder), ctx, order)
 }

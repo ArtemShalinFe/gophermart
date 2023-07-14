@@ -12,8 +12,12 @@ type Config struct {
 	Key     []byte
 }
 
-func GetConfig() *Config {
+const envAddress = "RUN_ADDRESS"
+const envDSN = "DATABASE_URI"
+const envAccrualAddress = "ACCRUAL_SYSTEM_ADDRESS"
+const envSecretKey = "KEY"
 
+func GetConfig() *Config {
 	c := &Config{}
 
 	var key string
@@ -24,28 +28,27 @@ func GetConfig() *Config {
 	pflag.Parse()
 
 	viper.AutomaticEnv()
-	viper.SetDefault("RUN_ADDRESS", "localhost:8078")
-	viper.SetDefault("DATABASE_URI", "")
-	viper.SetDefault("ACCRUAL_SYSTEM_ADDRESS", "localhost:8080")
-	viper.SetDefault("KEY", "gophermart")
+	viper.SetDefault(envAddress, "localhost:8078")
+	viper.SetDefault(envDSN, "")
+	viper.SetDefault(envAccrualAddress, "localhost:8080")
+	viper.SetDefault(envSecretKey, "gophermart")
 
 	if c.Address == "" {
-		c.Address = viper.GetString("RUN_ADDRESS")
-	}
-
-	if c.Accrual == "" {
-		c.Accrual = viper.GetString("ACCRUAL_SYSTEM_ADDRESS")
+		c.Address = viper.GetString(envAddress)
 	}
 
 	if c.DSN == "" {
-		c.DSN = viper.GetString("DATABASE_URI")
+		c.DSN = viper.GetString(envDSN)
+	}
+
+	if c.Accrual == "" {
+		c.Accrual = viper.GetString(envAccrualAddress)
 	}
 
 	if key == "" {
-		key = viper.GetString("KEY")
+		key = viper.GetString(envSecretKey)
 	}
 	c.Key = []byte(key)
 
 	return c
-
 }

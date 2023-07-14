@@ -12,7 +12,6 @@ type DB struct {
 }
 
 func NewDB(ctx context.Context, dsn string) (*DB, error) {
-
 	if err := runMigrations(dsn); err != nil {
 		return nil, fmt.Errorf("failed to run DB migrations: %w", err)
 	}
@@ -25,5 +24,8 @@ func NewDB(ctx context.Context, dsn string) (*DB, error) {
 	return &DB{
 		pool: pool,
 	}, nil
+}
 
+func (db *DB) Close() {
+	db.pool.Close()
 }

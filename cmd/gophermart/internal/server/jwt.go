@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/models"
 	"github.com/golang-jwt/jwt/v4"
+
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 )
 
 type Claims struct {
@@ -16,12 +17,11 @@ type Claims struct {
 }
 
 func NewJWTToken(secretKey []byte, login string, password string) (string, error) {
-
-	const TOKEN_EXP = time.Hour * 1
+	const tokenExp = time.Hour * 1
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
 		},
 		Login:    login,
 		Password: password,
@@ -33,11 +33,9 @@ func NewJWTToken(secretKey []byte, login string, password string) (string, error
 	}
 
 	return tokenString, nil
-
 }
 
 func IsAuthorized(tokenString string, secretKey []byte) (bool, error) {
-
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims,
@@ -57,12 +55,10 @@ func IsAuthorized(tokenString string, secretKey []byte) (bool, error) {
 	}
 
 	return true, nil
-
 }
 
 func (h *Handlers) GetUserFromJWTToken(w http.ResponseWriter, r *http.Request) (*models.User, error) {
-
-	authToken := r.Header.Get("Authorization")
+	authToken := r.Header.Get(authHeaderName)
 
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(authToken, claims, func(t *jwt.Token) (interface{}, error) {
@@ -79,13 +75,11 @@ func (h *Handlers) GetUserFromJWTToken(w http.ResponseWriter, r *http.Request) (
 	}
 
 	return udto.GetUser(r.Context(), h.store)
-
 }
 
 func (h *Handlers) JwtMiddleware(hr http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		authToken := r.Header.Get("Authorization")
+		authToken := r.Header.Get(authHeaderName)
 
 		authorized, err := IsAuthorized(authToken, h.secretKey)
 		if err != nil {
@@ -96,6 +90,5 @@ func (h *Handlers) JwtMiddleware(hr http.Handler) http.Handler {
 		if authorized {
 			hr.ServeHTTP(w, r)
 		}
-
 	})
 }

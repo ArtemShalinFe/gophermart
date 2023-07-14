@@ -12,7 +12,7 @@ type UserDTO struct {
 }
 
 type User struct {
-	Id             string `json:"uuid"`
+	ID             string `json:"uuid"`
 	Login          string `json:"login"`
 	PasswordBase64 string `json:"password"`
 }
@@ -31,7 +31,6 @@ func (u *UserDTO) AddUser(ctx context.Context, db UserStorage) (*User, error) {
 }
 
 func (u *UserDTO) GetUser(ctx context.Context, db UserStorage) (*User, error) {
-
 	if u.Login == "" {
 		return nil, ErrUnknowUser
 	}

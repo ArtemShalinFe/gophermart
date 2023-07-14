@@ -16,12 +16,12 @@ tests: build
 		-test.v -test.run=^TestGophermart$ \
             -gophermart-binary-path=cmd/gophermart/gophermart \
             -gophermart-host=localhost \
-            -gophermart-port=8078 \
-            -gophermart-database-uri="postgresql://gopher:gopher@localhost:5432/gophermart?sslmode=disable" \
+            -gophermart-port=8080 \
+            -gophermart-database-uri="postgresql://postgres:gopher@localhost:5432/gophermart?sslmode=disable" \
             -accrual-binary-path=cmd/accrual/accrual_darwin_arm64 \
             -accrual-host=localhost \
-            -accrual-port=8080 \
-            -accrual-database-uri="postgresql://gopher:gopher@localhost:5432/accrual?sslmode=disable"
+            -accrual-port=8078 \
+            -accrual-database-uri="postgresql://postgres:gopher@localhost:5432/accrual?sslmode=disable"
 
 .PHONY: lint
 lint:
@@ -32,7 +32,7 @@ lint:
     golangci/golangci-lint:v1.53.3 \
         golangci-lint run \
         -c .golangci-lint.yml \
-    > ./golangci-lint/report-unformatted.json | jq > ./golangci-lint/report.json | rm ./golangci-lint/report-unformatted.json
+    > ./golangci-lint/report.json
 
 # POSTGRESQL
 .PHONY: run-pg

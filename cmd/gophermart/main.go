@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"time"
 
@@ -24,54 +25,71 @@ const (
 )
 
 func main() {
-
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func run() (err error) {
-
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelCtx()
-
-	zl, err := zap.NewProduction()
-	if err != nil {
-		return fmt.Errorf("cannot init zap-logger err: %w ", err)
-	}
-
-	cfg := config.GetConfig()
-	log.Printf("config %+v", cfg)
-	db, err := db.NewDB(ctx, cfg.DSN)
-	if err != nil {
-		return fmt.Errorf("failed to initialize a new DB: %w", err)
-	}
 
 	wg := &sync.WaitGroup{}
 	defer func() {
 		wg.Wait()
 	}()
 
-	// wg.Add(1)
-	// go func() {
-	// 	defer log.Print("closed DB")
-	// 	defer wg.Done()
-	// 	<-ctx.Done()
-
-	// 	db.Close()
-	// }()
+	// Init logger
+	zapl, err := zap.NewProduction()
+	if err != nil {
+		return fmt.Errorf("failed to initialize logger err: %w ", err)
+	}
+	log := zapl.Sugar()
 
 	componentsErrs := make(chan error, 1)
 
-	h, err := server.NewHandlers(cfg.Key, db, zl)
+	wg.Add(1)
+	go func(errs chan<- error) {
+		defer log.Info("flush buffered log entries")
+		defer wg.Done()
+		<-ctx.Done()
+
+		if err := log.Sync(); err != nil {
+			if runtime.GOOS != "darwin" {
+				errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+			}
+		}
+	}(componentsErrs)
+
+	// Get config
+	cfg := config.GetConfig()
+	log.Infof("config %+v", cfg)
+
+	// Init DB
+	db, err := db.NewDB(ctx, cfg.DSN)
 	if err != nil {
-		log.Printf("handler init err: %v", err)
+		return fmt.Errorf("failed to initialize DB err: %w", err)
 	}
 
-	srv := server.InitServer(h, cfg, zl)
+	wg.Add(1)
+	go func() {
+		defer log.Info("closed DB")
+		defer wg.Done()
+		<-ctx.Done()
+
+		db.Close()
+	}()
+
+	// Init Handlers
+	h, err := server.NewHandlers(cfg.Key, db, log)
+	if err != nil {
+		return fmt.Errorf("failed to initialize handlers err: %w", err)
+	}
+
+	// Init and run Server
+	srv := server.InitServer(h, cfg, log)
 	go func(errs chan<- error) {
-		if err := srv.HttpServer.ListenAndServe(); err != nil {
+		if err := srv.HTTPServer.ListenAndServe(); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				return
 			}
@@ -79,23 +97,24 @@ func run() (err error) {
 		}
 	}(componentsErrs)
 
+	// Graceful shutdown
 	wg.Add(1)
 	go func() {
-		defer log.Print("server has been shutdown")
+		defer log.Error("server has been shutdown")
 		defer wg.Done()
 		<-ctx.Done()
 
 		shutdownTimeoutCtx, cancelShutdownTimeoutCtx := context.WithTimeout(context.Background(), timeoutServerShutdown)
 		defer cancelShutdownTimeoutCtx()
-		if err := srv.HttpServer.Shutdown(shutdownTimeoutCtx); err != nil {
-			log.Printf("an error occurred during server shutdown: %v", err)
+		if err := srv.HTTPServer.Shutdown(shutdownTimeoutCtx); err != nil {
+			log.Errorf("an error occurred during server shutdown: %v", err)
 		}
 	}()
 
 	select {
 	case <-ctx.Done():
 	case err := <-componentsErrs:
-		log.Print(err)
+		log.Error(err)
 		cancelCtx()
 	}
 
@@ -104,7 +123,7 @@ func run() (err error) {
 		defer cancelCtx()
 
 		<-ctx.Done()
-		log.Fatal("failed to gracefully shutdown the service")
+		log.Error("failed to gracefully shutdown the service")
 	}()
 
 	return nil

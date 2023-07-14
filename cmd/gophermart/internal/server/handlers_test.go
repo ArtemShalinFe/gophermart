@@ -15,39 +15,40 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/models"
+	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 )
 
 func TestRegisterHandler(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
 
-	u1_dto := &models.UserDTO{
-		Login:    "test",
-		Password: models.EncodePassword("test"),
+	var test = "test"
+
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: models.EncodePassword(test),
 	}
 
-	u2_dto := &models.UserDTO{
+	u2Dto := &models.UserDTO{
 		Login:    "test2",
 		Password: models.EncodePassword("test3"),
 	}
 
 	u1 := &models.User{
-		Login:          "test",
-		PasswordBase64: models.EncodePassword("test"),
+		Login:          test,
+		PasswordBase64: models.EncodePassword(test),
 	}
 
 	mr := db.EXPECT()
 
-	addUserCall := mr.AddUser(gomock.Any(), u1_dto)
+	addUserCall := mr.AddUser(gomock.Any(), u1Dto)
 	addUserCall.Return(u1, nil)
 
-	mr.AddUser(gomock.Any(), u2_dto).After(addUserCall).Return(nil, models.ErrLoginIsBusy)
+	mr.AddUser(gomock.Any(), u2Dto).After(addUserCall).Return(nil, models.ErrLoginIsBusy)
 
-	h, err := NewHandlers([]byte("key"), db, zap.L())
+	h, err := NewHandlers([]byte("keyRegister"), db, zap.L().Sugar())
 	if err != nil {
 		t.Error(err)
 	}
@@ -57,11 +58,11 @@ func TestRegisterHandler(t *testing.T) {
 	defer testServer.Close()
 
 	var tests = []struct {
+		UserDTO interface{}
 		name    string
 		url     string
-		status  int
 		method  string
-		UserDTO interface{}
+		status  int
 	}{
 		{
 			name:   "Test user register",
@@ -69,8 +70,8 @@ func TestRegisterHandler(t *testing.T) {
 			status: 200,
 			method: http.MethodPost,
 			UserDTO: &models.UserDTO{
-				Login:    "test",
-				Password: "test",
+				Login:    test,
+				Password: test,
 			},
 		},
 		{
@@ -105,12 +106,11 @@ func TestRegisterHandler(t *testing.T) {
 			UserDTO: struct {
 				name string
 				psw  string
-			}{name: "test", psw: "test"},
+			}{name: "test123", psw: "test321"},
 		},
 	}
 
 	for _, v := range tests {
-
 		v := v
 
 		b, err := json.Marshal(v.UserDTO)
@@ -119,41 +119,43 @@ func TestRegisterHandler(t *testing.T) {
 		}
 
 		resp, _ := testRequest(t, testServer, v.method, v.url, "", bytes.NewBuffer(b))
-		defer resp.Body.Close()
+		resp.Body.Close()
 
-		require.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("%s URL: %s, want: %d, have: %d", v.name, v.url, v.status, resp.StatusCode))
-
+		require.Equal(t, v.status, resp.StatusCode,
+			fmt.Sprintf("TestRegisterHandler: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
 	}
 }
 
 func TestLoginHandler(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
 
-	u1_dto := &models.UserDTO{
-		Login:    "test",
-		Password: "test",
+	var test = "test"
+
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: models.EncodePassword(test),
 	}
 
-	u2_dto := &models.UserDTO{
+	u2Dto := &models.UserDTO{
 		Login:    "test2",
-		Password: "broken password 123",
+		Password: models.EncodePassword("broken password 123"),
 	}
 
 	u1 := &models.User{
-		Login:          "test",
-		PasswordBase64: models.EncodePassword("test"),
+		Login:          test,
+		PasswordBase64: models.EncodePassword(test),
 	}
 
 	mr := db.EXPECT()
 
-	mr.GetUser(gomock.Any(), u1_dto).Return(u1, nil)
-	mr.GetUser(gomock.Any(), u2_dto).Return(nil, models.ErrUnknowUser)
+	mr.GetUser(gomock.Any(), u1Dto).Return(u1, nil)
+	mr.GetUser(gomock.Any(), u2Dto).Return(nil, models.ErrUnknowUser)
 
-	h, err := NewHandlers([]byte("key"), db, zap.L())
+	h, err := NewHandlers([]byte("keyLogin"), db, zap.L().Sugar())
 	if err != nil {
 		t.Error(err)
 	}
@@ -163,18 +165,18 @@ func TestLoginHandler(t *testing.T) {
 	defer testServer.Close()
 
 	var tests = []struct {
+		UserDTO any
 		name    string
 		url     string
-		status  int
 		method  string
-		UserDTO any
+		status  int
 	}{
 		{
 			name:    "Test user login",
 			url:     "/api/user/login",
 			status:  200,
 			method:  http.MethodPost,
-			UserDTO: &models.UserDTO{Login: "test", Password: "test"},
+			UserDTO: &models.UserDTO{Login: test, Password: test},
 		},
 		{
 			name:    "Test user login with broken pass",
@@ -200,7 +202,6 @@ func TestLoginHandler(t *testing.T) {
 	}
 
 	for _, v := range tests {
-
 		v := v
 
 		b, err := json.Marshal(v.UserDTO)
@@ -208,112 +209,120 @@ func TestLoginHandler(t *testing.T) {
 			t.Error(err)
 		}
 
-		resp, _ := testRequest(t, testServer, v.method, v.url, "", bytes.NewBuffer(b))
-		defer resp.Body.Close()
+		resp, _ := testRequest(t,
+			testServer,
+			v.method,
+			v.url,
+			"",
+			bytes.NewBuffer(b))
 
-		require.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("%s URL: %s, want: %d, have: %d", v.name, v.url, v.status, resp.StatusCode))
+		resp.Body.Close()
 
+		require.Equal(t, v.status, resp.StatusCode,
+			fmt.Sprintf("TestLoginHandler: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
 	}
 }
 
 func TestAddOrderHandler(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
 
-	o1_dto := &models.OrderDTO{
+	var test = "test"
+
+	o1Dto := &models.OrderDTO{
 		Number: 1,
-		UserId: "1",
+		UserID: "1",
 	}
 
-	o2_dto := &models.OrderDTO{
+	o2Dto := &models.OrderDTO{
 		Number: 2,
-		UserId: "1",
+		UserID: "1",
 	}
 
-	o3_dto := &models.OrderDTO{
+	o3Dto := &models.OrderDTO{
 		Number: 3,
-		UserId: "2",
+		UserID: "2",
 	}
 
 	o1 := &models.Order{
-		Id:          "1",
-		UserId:      "1",
-		Number:      1,
-		Status:      "NEW",
-		Accrual:     0,
-		Uploaded_at: time.Now(),
+		ID:         "1",
+		UserID:     "1",
+		Number:     1,
+		Status:     "NEW",
+		Accrual:    0,
+		UploadedAt: time.Now(),
 	}
 
 	o2 := &models.Order{
-		Id:          "2",
-		UserId:      "1",
-		Number:      1,
-		Status:      "NEW",
-		Accrual:     0,
-		Uploaded_at: time.Now(),
+		ID:         "2",
+		UserID:     "1",
+		Number:     1,
+		Status:     "NEW",
+		Accrual:    0,
+		UploadedAt: time.Now(),
 	}
 
 	o3 := &models.Order{
-		Id:          "3",
-		UserId:      "1",
-		Number:      1,
-		Status:      "NEW",
-		Accrual:     0,
-		Uploaded_at: time.Now(),
+		ID:         "3",
+		UserID:     "1",
+		Number:     1,
+		Status:     "NEW",
+		Accrual:    0,
+		UploadedAt: time.Now(),
 	}
 
-	u1_dto := &models.UserDTO{
-		Login:    "test",
-		Password: models.EncodePassword("test"),
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: models.EncodePassword(test),
 	}
 
-	u2_dto := &models.UserDTO{
-		Login:    "test",
-		Password: "test",
+	u2Dto := &models.UserDTO{
+		Login:    test,
+		Password: test,
 	}
 
-	u3_dto := &models.UserDTO{
+	u3Dto := &models.UserDTO{
 		Login:    "test2",
 		Password: models.EncodePassword("test2"),
 	}
 
-	u4_dto := &models.UserDTO{
+	u4Dto := &models.UserDTO{
 		Login:    "test2",
 		Password: "test2",
 	}
 
 	u1 := &models.User{
-		Id:             "1",
-		Login:          "test",
-		PasswordBase64: models.EncodePassword("test"),
+		ID:             "1",
+		Login:          test,
+		PasswordBase64: models.EncodePassword(test),
 	}
 
 	u2 := &models.User{
-		Id:             "2",
+		ID:             "2",
 		Login:          "test2",
 		PasswordBase64: models.EncodePassword("test2"),
 	}
 
 	mr := db.EXPECT()
 
-	mr.GetUser(gomock.Any(), u1_dto).AnyTimes().Return(u1, nil)
-	mr.GetUser(gomock.Any(), u2_dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u2Dto).AnyTimes().Return(u1, nil)
 
-	mr.GetUser(gomock.Any(), u3_dto).AnyTimes().Return(u2, nil)
-	mr.GetUser(gomock.Any(), u4_dto).AnyTimes().Return(u2, nil)
+	mr.GetUser(gomock.Any(), u3Dto).AnyTimes().Return(u2, nil)
+	mr.GetUser(gomock.Any(), u4Dto).AnyTimes().Return(u2, nil)
 
-	mr.AddOrder(gomock.Any(), o1_dto).AnyTimes().Return(o1, nil)
-	mr.AddOrder(gomock.Any(), o2_dto).AnyTimes().Return(nil, models.ErrOrderWasRegisteredEarlier)
-	mr.AddOrder(gomock.Any(), o3_dto).AnyTimes().Return(nil, models.ErrOrderWasRegisteredEarlier)
+	mr.AddOrder(gomock.Any(), o1Dto).AnyTimes().Return(o1, nil)
+	mr.AddOrder(gomock.Any(), o2Dto).AnyTimes().Return(nil, models.ErrOrderWasRegisteredEarlier)
+	mr.AddOrder(gomock.Any(), o3Dto).AnyTimes().Return(nil, models.ErrOrderWasRegisteredEarlier)
 
-	mr.GetOrder(gomock.Any(), o1_dto).AnyTimes().Return(o1, nil)
-	mr.GetOrder(gomock.Any(), o2_dto).AnyTimes().Return(o2, nil)
-	mr.GetOrder(gomock.Any(), o3_dto).AnyTimes().Return(o3, nil)
+	mr.GetOrder(gomock.Any(), o1Dto).AnyTimes().Return(o1, nil)
+	mr.GetOrder(gomock.Any(), o2Dto).AnyTimes().Return(o2, nil)
+	mr.GetOrder(gomock.Any(), o3Dto).AnyTimes().Return(o3, nil)
 
-	h, err := NewHandlers([]byte("key"), db, zap.L())
+	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar())
 	if err != nil {
 		t.Error(err)
 	}
@@ -323,12 +332,12 @@ func TestAddOrderHandler(t *testing.T) {
 	defer testServer.Close()
 
 	var tests = []struct {
-		name    string
-		url     string
-		status  int
-		method  string
 		authReq any
 		body    any
+		name    string
+		url     string
+		method  string
+		status  int
 	}{
 		{
 			name:    "Add order unauthorized",
@@ -343,7 +352,7 @@ func TestAddOrderHandler(t *testing.T) {
 			url:     "/api/user/orders",
 			status:  202,
 			method:  http.MethodPost,
-			authReq: &models.UserDTO{Login: "test", Password: "test"},
+			authReq: &models.UserDTO{Login: test, Password: test},
 			body:    1,
 		},
 		{
@@ -351,7 +360,7 @@ func TestAddOrderHandler(t *testing.T) {
 			url:     "/api/user/orders",
 			status:  200,
 			method:  http.MethodPost,
-			authReq: &models.UserDTO{Login: "test", Password: "test"},
+			authReq: &models.UserDTO{Login: test, Password: test},
 			body:    2,
 		},
 		{
@@ -365,7 +374,6 @@ func TestAddOrderHandler(t *testing.T) {
 	}
 
 	for _, v := range tests {
-
 		v := v
 
 		b, err := json.Marshal(v.body)
@@ -373,17 +381,23 @@ func TestAddOrderHandler(t *testing.T) {
 			t.Error(err)
 		}
 
-		resp, _ := testRequest(t, testServer, v.method, v.url, GetAuthorizationToken(t, testServer, v.authReq), bytes.NewBuffer(b))
-		defer resp.Body.Close()
+		resp, _ := testRequest(t,
+			testServer,
+			v.method,
+			v.url,
+			GetAuthorizationToken(t, testServer, v.authReq),
+			bytes.NewBuffer(b))
+
+		resp.Body.Close()
 
 		require.Equal(t, v.status, resp.StatusCode,
-			fmt.Sprintf("%s URL: %s, want: %d, have: %d", v.name, v.url, v.status, resp.StatusCode))
-
+			fmt.Sprintf("TestAddOrderHandler: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
 	}
-
 }
 
 func GetAuthorizationToken(t *testing.T, ts *httptest.Server, authReq any) string {
+	t.Helper()
 
 	if authReq == nil {
 		return ""
@@ -397,11 +411,12 @@ func GetAuthorizationToken(t *testing.T, ts *httptest.Server, authReq any) strin
 	resp, _ := testRequest(t, ts, http.MethodPost, "/api/user/login", "", bytes.NewBuffer(b))
 	defer resp.Body.Close()
 
-	return resp.Header.Get("Authorization")
-
+	return resp.Header.Get(authHeaderName)
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method string, path string, jwt string, body io.Reader) (*http.Response, []byte) {
+func testRequest(t *testing.T, ts *httptest.Server,
+	method string, path string, jwt string, body io.Reader) (*http.Response, []byte) {
+	t.Helper()
 
 	r, err := url.JoinPath(ts.URL, path)
 	if err != nil {
@@ -409,7 +424,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method string, path string, 
 	}
 	req, err := http.NewRequest(method, r, body)
 	if jwt != "" {
-		req.Header.Set("Authorization", jwt)
+		req.Header.Set(authHeaderName, jwt)
 	}
 	require.NoError(t, err)
 
