@@ -30,6 +30,7 @@ type OrderStorage interface {
 	GetOrder(ctx context.Context, order *OrderDTO) (*Order, error)
 	GetOrdersForAccrual(ctx context.Context) ([]*Order, error)
 	UpdateOrder(ctx context.Context, order *Order) error
+	AddWithdrawn(ctx context.Context, userID string, orderNumber string, sum float64) error
 }
 
 type AccrualService interface {

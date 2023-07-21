@@ -15,6 +15,10 @@ import (
 type Storage interface {
 	AddUser(ctx context.Context, us *models.UserDTO) (*models.User, error)
 	GetUser(ctx context.Context, us *models.UserDTO) (*models.User, error)
+	GetCurrentBalance(ctx context.Context, userID string) (float64, error)
+	GetWithdrawals(ctx context.Context, userID string) (float64, error)
+	GetWithdrawalList(ctx context.Context, userID string) ([]*models.UserWithdrawalsHistory, error)
+	AddWithdrawn(ctx context.Context, userID string, orderNumber string, sum float64) error
 	GetUploadedOrders(ctx context.Context, order *models.User) ([]*models.Order, error)
 	GetOrdersForAccrual(ctx context.Context) ([]*models.Order, error)
 	AddOrder(ctx context.Context, order *models.OrderDTO) (*models.Order, error)
@@ -23,6 +27,7 @@ type Storage interface {
 }
 
 const authHeaderName = "Authorization"
+const ContentTypeJSON = "application/json"
 
 type Handlers struct {
 	log       *zap.SugaredLogger
@@ -151,7 +156,7 @@ func (h *Handlers) GetOrders(ctx context.Context, w http.ResponseWriter, r *http
 	u, err := h.GetUserFromJWTToken(w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		h.log.Errorf("failed to get user from JWT in the AddOrder request err: %w ", err)
+		h.log.Errorf("failed to get user from JWT in the GetOrders request err: %w ", err)
 		return
 	}
 
@@ -169,7 +174,7 @@ func (h *Handlers) GetOrders(ctx context.Context, w http.ResponseWriter, r *http
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", ContentTypeJSON)
 
 	if _, err = w.Write(b); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -179,15 +184,118 @@ func (h *Handlers) GetOrders(ctx context.Context, w http.ResponseWriter, r *http
 }
 
 func (h *Handlers) GetBalance(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	h.log.Info("GetBalance not implemented")
+	u, err := h.GetUserFromJWTToken(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed to get user from JWT in the GetBalance request err: %w ", err)
+		return
+	}
+
+	c, err := u.GetUserBalance(ctx, h.store)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("failed to get user current balance in the GetBalance request err: %w ", err)
+		return
+	}
+
+	wn, err := u.GetWithdrawals(ctx, h.store)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("failed to get user withdrawals in the GetBalance request err: %w ", err)
+		return
+	}
+
+	resp := struct {
+		Current   float64 `json:"current"`
+		Withdrawn float64 `json:"withdrawn"`
+	}{
+		Current:   c,
+		Withdrawn: wn,
+	}
+
+	b, err := json.Marshal(&resp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("GetBalance marshal to json err: %w", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", ContentTypeJSON)
+
+	if _, err = w.Write(b); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("GetBalance error: %w", err)
+		return
+	}
 }
 
-func (h *Handlers) AddBalanceWithdraw(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	h.log.Info("AddBalanceWithdraw not implemented")
+func (h *Handlers) AddBalanceWithdrawn(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	u, err := h.GetUserFromJWTToken(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed to get user from JWT in the AddBalanceWithdrawn request err: %w ", err)
+		return
+	}
+
+	req := struct {
+		Order string  `json:"order"`
+		Sum   float64 `json:"sum"`
+	}{}
+
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("failed get order and accrual from body err: %w", err)
+		return
+	}
+
+	if err := json.Unmarshal(b, &req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed unmarhsal order and accrual err: %w", err)
+		return
+	}
+
+	if err := u.AddWithdrawn(ctx, h.store, req.Order, req.Sum); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed to add withdrawal err: %w", err)
+		return
+	}
 }
 
-func (h *Handlers) GetWithdrawals(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	h.log.Info("GetWithdrawals not implemented")
+func (h *Handlers) GetBalanceMovementHistory(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	u, err := h.GetUserFromJWTToken(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed to get user from JWT in the GetBalanceMovementHistory request err: %w ", err)
+		return
+	}
+
+	ub, err := u.GetWithdrawalList(ctx, h.store)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		h.log.Errorf("failed to get user balance history in the GetBalanceMovementHistory request err: %w ", err)
+		return
+	}
+
+	if len(ub) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	b, err := json.Marshal(&ub)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("GetBalanceMovementHistory marshal to json err: %w", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", ContentTypeJSON)
+
+	if _, err = w.Write(b); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Errorf("GetBalanceMovementHistory error: %w", err)
+		return
+	}
 }
 
 func getLoginPsw(w http.ResponseWriter, r *http.Request) (*models.UserDTO, error) {

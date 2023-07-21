@@ -66,22 +66,24 @@ func initRouter(h *Handlers) *chi.Mux {
 			})
 
 			r.Post("/balance/withdraw", func(w http.ResponseWriter, r *http.Request) {
-				h.AddBalanceWithdraw(r.Context(), w, r)
+				h.AddBalanceWithdrawn(r.Context(), w, r)
 			})
 
 			r.Get("/withdrawals", func(w http.ResponseWriter, r *http.Request) {
-				h.GetWithdrawals(r.Context(), w, r)
+				h.GetBalanceMovementHistory(r.Context(), w, r)
 			})
 		})
 	})
 	return router
 }
 
-func (s *Server) RunOrderAccruals(ctx context.Context, a models.AccrualService, db Storage) error {
-	ticker := time.NewTicker(time.Duration(200 * time.Millisecond))
+func (s *Server) RunOrderAccruals(ctx context.Context, a models.AccrualService, db Storage) {
+	ticker := time.NewTicker(5 * time.Second)
 
 	errs := make(chan error, 1)
-	orders := make(chan *models.Order, 10)
+
+	const defaultOrderChanSize = 10
+	orders := make(chan *models.Order, defaultOrderChanSize)
 
 	go func(ctx context.Context, orders chan<- *models.Order, errs chan<- error) {
 		for {
@@ -131,5 +133,4 @@ func (s *Server) RunOrderAccruals(ctx context.Context, a models.AccrualService, 
 		}
 	}(ctx, errs)
 
-	return nil
 }

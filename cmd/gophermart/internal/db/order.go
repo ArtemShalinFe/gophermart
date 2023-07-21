@@ -23,8 +23,7 @@ func (db *DB) AddOrder(ctx context.Context, order *models.OrderDTO) (*models.Ord
 	INSERT INTO orders(uploaded, number, userid, status, sum)
 	VALUES (CURRENT_TIMESTAMP, $1, $2, $3, 0)
 	RETURNING 
-		id, uploaded, number, sum, userid, status
-	;`
+		id, uploaded, number, sum, userid, status;`
 
 	row := tx.QueryRow(ctx, sql, order.Number, order.UserID, models.OrderStatusNew)
 
@@ -130,12 +129,20 @@ func (db *DB) UpdateOrder(ctx context.Context, order *models.Order) error {
 		sum = $5, 
 		status = $6
 	WHERE
-		id = $1
-	;`
+		id = $1;`
 
 	if _, err := tx.Exec(ctx, sql,
 		order.ID, order.UploadedAt, order.Number, order.UserID, order.Accrual, order.Status); err != nil {
 		return fmt.Errorf("db UpdateOrder err: %w", err)
+	}
+
+	if _, err := db.UpdateUserBalance(ctx, tx, order.UserID, order.Accrual); err != nil {
+		if errors.Is(err, models.ErrNotEnoughAccruals) {
+			if err := tx.Rollback(ctx); err != nil {
+				return fmt.Errorf("failed rollback transaction UpdateOrder err: %w", err)
+			}
+		}
+		return fmt.Errorf("failed update user balance. UpdateUserBalance err: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -143,4 +150,39 @@ func (db *DB) UpdateOrder(ctx context.Context, order *models.Order) error {
 	}
 
 	return nil
+}
+
+func (db *DB) GetUploadedOrders(ctx context.Context, u *models.User) ([]*models.Order, error) {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to start GetUploadedOrders transaction err: %w", err)
+	}
+
+	defer tx.Rollback(ctx)
+
+	sql := `
+	SELECT id, uploaded, number, sum, status
+	FROM orders
+	WHERE userId = $1
+	ORDER BY uploaded DESC;`
+
+	rows, err := tx.Query(ctx, sql, u.ID)
+	if err != nil {
+		return nil, fmt.Errorf("db GetUploadedOrders err: %w", err)
+	}
+
+	var ors []*models.Order
+	for rows.Next() {
+		var o models.Order
+		if err := rows.Scan(&o.ID, &o.UploadedAt, &o.Number, &o.Accrual, &o.Status); err != nil {
+			return nil, fmt.Errorf("db GetUploadedOrders row scan err: %w", err)
+		}
+		ors = append(ors, &o)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed commit transaction GetUploadedOrders err: %w", err)
+	}
+
+	return ors, nil
 }

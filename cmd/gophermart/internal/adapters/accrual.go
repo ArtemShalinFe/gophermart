@@ -36,7 +36,6 @@ func NewAccrualClient(cfg *config.Config) *Accrual {
 }
 
 func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
-
 	if resp == nil {
 		return false, err
 	}
@@ -89,12 +88,12 @@ func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*mo
 
 	res, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed reading response body err: %w", err)
+		return nil, fmt.Errorf("failed reading response body %s err: %w", string(res), err)
 	}
 
 	var oa models.OrderAccrual
 	if err := json.Unmarshal(res, &oa); err != nil {
-		return nil, fmt.Errorf("failed unmarshal response body err: %w", err)
+		return nil, fmt.Errorf("failed unmarshal response body %s err: %w", string(res), err)
 	}
 
 	return &oa, nil

@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -26,8 +27,8 @@ func (h *Handlers) RequestLogger(hr http.Handler) http.Handler {
 		hr.ServeHTTP(rw, r)
 		duration := time.Since(start)
 
-		h.log.Infof("HTTP request method: %s, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
-			r.Method, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
+		h.log.Infof("HTTP request method: %s, url: %s, body: %s, duration: %s, statusCode: %d, responseSize: %d",
+			r.Method, r.RequestURI, string(body), duration, rw.responseData.status, rw.responseData.size,
 		)
 	})
 }
@@ -52,7 +53,7 @@ func NewResponseLoggerWriter(w http.ResponseWriter) *ResponseLoggerWriter {
 func (r *ResponseLoggerWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failer response write err: %w", err)
 	}
 
 	r.responseData.size += size

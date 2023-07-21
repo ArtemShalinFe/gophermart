@@ -1,6 +1,6 @@
 # Gophermart
 
-![Made](https://img.shields.io/badge/Made%20with-Go-1f425f.svg) [![codecov](https://codecov.io/gh/ArtemShalinFe/gophermart/branch/master/graph/badge.svg?token=1H84IB1DO1)](https://codecov.io/gh/ArtemShalinFe/gophermart)
+![Made](https://img.shields.io/badge/Made%20with-Go-1f425f.svg) [![codecov](https://codecov.io/gh/ArtemShalinFe/gophermart/branch/master/graph/badge.svg?token=1H84IB1DO1)](https://codecov.io/gh/ArtemShalinFe/gophermart) [![Go Report Card](https://goreportcard.com/badge/github.com/ArtemShalinFe/metcoll)](https://goreportcard.com/report/github.com/ArtemShalinFe/metcoll) [![codebeat badge](https://codebeat.co/badges/82ddd548-2bf1-4071-a4e7-f74136226364)](https://codebeat.co/projects/github-com-artemshalinfe-gophermart-master)
 
 Индивидуальный дипломный проекта курса «Go-разработчик».
 
@@ -47,15 +47,15 @@ go test ./... -v -race
 
 ## Дорожная карта
 
-- [ ] Разработка
+- [x] Разработка
   - [x] Регистрация пользователя
   - [x] Аутентификация пользователя
   - [x] Загрузка номера заказа
   - [x] Получение списка загруженных номеров заказов
-  - [ ] Получение текущего баланса пользователя
-  - [ ] Запрос на списание средств
-  - [ ] Получение информации о выводе средств
-  - [ ] Взаимодействие с системой расчёта начислений баллов лояльности
+  - [x] Получение текущего баланса пользователя
+  - [x] Запрос на списание средств
+  - [x] Получение информации о выводе средств
+  - [x] Взаимодействие с системой расчёта начислений баллов лояльности
 - [x] Реализовать изменение схемы БД через миграции
 - [x] Подключить codecov
 - [x] Добавить github badges
