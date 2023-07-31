@@ -12,7 +12,7 @@ build:
 # TESTS
 .PHONY: tests
 tests: build
-	# go test ./... -v -race
+	go test ./... -v -race
 	gophermarttest-darwin-arm64 \
 		-test.v -test.run=^TestGophermart$ \
             -gophermart-binary-path=cmd/gophermart/gophermart \

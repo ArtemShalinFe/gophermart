@@ -99,6 +99,18 @@ func TestIsAuthorized(t *testing.T) {
 			wantErr:   true,
 		},
 		{
+			name: "Negative case #2",
+			args: args{
+				secretKey: brokenkey,
+				login:     "test1",
+				password:  "test",
+				tokenExp:  time.Hour * 1,
+			},
+			needSleep: false,
+			want:      false,
+			wantErr:   true,
+		},
+		{
 			name: "Expiration case",
 			args: args{
 				secretKey: brokenkey,

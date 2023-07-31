@@ -11,10 +11,10 @@ import (
 type Config struct {
 	Address         string
 	Accrual         string
-	AccrualInterval int
 	DSN             string
-	TokenExp        time.Duration
 	Key             []byte
+	AccrualInterval int
+	TokenExp        time.Duration
 }
 
 const envAddress = "RUN_ADDRESS"
@@ -31,19 +31,25 @@ func GetConfig() *Config {
 	var tokExp int
 	pflag.StringVarP(&c.Address, "address", "a", "", "Gophermart address and port")
 	pflag.StringVarP(&c.Accrual, "accrual", "r", "", "Accrual address and port")
-	pflag.IntVarP(&c.AccrualInterval, "accrualInterval", "i", 0, "Gophermart using this timeout between requests to the accrual service")
+	pflag.IntVarP(&c.AccrualInterval, "accrualInterval", "i", 0, "This is timeout between requests to the accrual service")
 	pflag.StringVarP(&c.DSN, "dsn", "d", "", "Postgresql DSN string")
 	pflag.StringVarP(&key, "key", "k", "", "Secret key")
 	pflag.IntVarP(&tokExp, "tokenExpiration", "t", 0, "jwt token expiration")
 	pflag.Parse()
 
+	const defAddress = "localhost:8078"
+	const defAccrualAddress = "localhost:8080"
+	const defSecretKey = "gophermart"
+	const defAccrualInterval = 2
+	const defTokenExp = 1
+
 	viper.AutomaticEnv()
-	viper.SetDefault(envAddress, "localhost:8078")
+	viper.SetDefault(envAddress, defAddress)
 	viper.SetDefault(envDSN, "")
-	viper.SetDefault(envAccrualAddress, "localhost:8080")
-	viper.SetDefault(envSecretKey, "gophermart")
-	viper.SetDefault(envAccrualInterval, 2)
-	viper.SetDefault(envTokenExp, 1)
+	viper.SetDefault(envAccrualAddress, defAccrualAddress)
+	viper.SetDefault(envSecretKey, defSecretKey)
+	viper.SetDefault(envAccrualInterval, defAccrualInterval)
+	viper.SetDefault(envTokenExp, defTokenExp)
 
 	if c.Address == "" {
 		c.Address = viper.GetString(envAddress)
@@ -74,5 +80,9 @@ func GetConfig() *Config {
 }
 
 func (c *Config) String() string {
-	return fmt.Sprintf("Address: %s, Accrual: %s, AccrualInterval: %d, DSN: %s", c.Address, c.Accrual, c.AccrualInterval, c.DSN)
+	return fmt.Sprintf(
+		`Address: %s, 
+		Accrual: %s, 
+		AccrualInterval: %d, 
+		DSN: %s`, c.Address, c.Accrual, c.AccrualInterval, c.DSN)
 }

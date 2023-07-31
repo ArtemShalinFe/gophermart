@@ -8,11 +8,12 @@ import (
 )
 
 const compressedTypes = "application/json,text/html"
+const gzipType = "gzip"
+const contentEncoding = "Content-Encoding"
 
 func CompressMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		contentType := r.Header.Get("Content-Type")
+		contentType := r.Header.Get(contentType)
 		if !strings.Contains(compressedTypes, contentType) {
 			h.ServeHTTP(w, r)
 		}
@@ -20,16 +21,16 @@ func CompressMiddleware(h http.Handler) http.Handler {
 
 		acceptEncodings := r.Header.Values("Accept-Encoding")
 		for _, acceptEncoding := range acceptEncodings {
-			if strings.Contains(acceptEncoding, "gzip") {
+			if strings.Contains(acceptEncoding, gzipType) {
 				gzipWriter := NewGzipWriter(w)
 				origWriter = gzipWriter
 				defer gzipWriter.Close()
 			}
 		}
-		contentEncodings := r.Header.Values("Content-Encoding")
+		contentEncodings := r.Header.Values(contentEncoding)
 
 		for _, contentEncoding := range contentEncodings {
-			if strings.Contains(contentEncoding, "gzip") {
+			if strings.Contains(contentEncoding, gzipType) {
 				compressReader, err := NewGzipReader(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -39,7 +40,6 @@ func CompressMiddleware(h http.Handler) http.Handler {
 				defer compressReader.Close()
 			}
 		}
-
 		h.ServeHTTP(origWriter, r)
 	})
 }
@@ -62,7 +62,7 @@ func (c *gzipWriter) Write(p []byte) (int, error) {
 
 func (c *gzipWriter) WriteHeader(statusCode int) {
 	if statusCode < 300 {
-		c.ResponseWriter.Header().Set("Content-Encoding", "gzip")
+		c.ResponseWriter.Header().Set(contentEncoding, gzipType)
 	}
 	c.ResponseWriter.WriteHeader(statusCode)
 }

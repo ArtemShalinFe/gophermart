@@ -5,13 +5,15 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type DB struct {
 	pool *pgxpool.Pool
+	log  *zap.SugaredLogger
 }
 
-func NewDB(ctx context.Context, dsn string) (*DB, error) {
+func NewDB(ctx context.Context, dsn string, log *zap.SugaredLogger) (*DB, error) {
 	if err := runMigrations(dsn); err != nil {
 		return nil, fmt.Errorf("failed to run DB migrations: %w", err)
 	}
@@ -23,6 +25,7 @@ func NewDB(ctx context.Context, dsn string) (*DB, error) {
 
 	return &DB{
 		pool: pool,
+		log:  log,
 	}, nil
 }
 

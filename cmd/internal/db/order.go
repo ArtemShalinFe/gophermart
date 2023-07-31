@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
@@ -86,7 +87,13 @@ func (db *DB) UpdateOrder(ctx context.Context, order *models.Order) error {
 		return fmt.Errorf("unable to start UpdateOrder transaction err: %w", err)
 	}
 
-	defer tx.Rollback(ctx)
+	defer func(tx pgx.Tx) {
+		if err := tx.Rollback(ctx); err != nil {
+			if !errors.Is(err, pgx.ErrTxClosed) {
+				db.log.Errorf("failed rollback transaction UpdateOrder err: %w", err)
+			}
+		}
+	}(tx)
 
 	sql := `
 	UPDATE orders
@@ -105,11 +112,6 @@ func (db *DB) UpdateOrder(ctx context.Context, order *models.Order) error {
 	}
 
 	if _, err := db.UpdateUserBalance(ctx, tx, order.UserID, order.Accrual); err != nil {
-		if errors.Is(err, models.ErrNotEnoughAccruals) {
-			if err := tx.Rollback(ctx); err != nil {
-				return fmt.Errorf("failed rollback transaction UpdateOrder err: %w", err)
-			}
-		}
 		return fmt.Errorf("failed update user balance. UpdateUserBalance err: %w", err)
 	}
 

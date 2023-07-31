@@ -157,10 +157,7 @@ func TestLoginHandler(t *testing.T) {
 	}
 
 	hc := hashc.EXPECT()
-	hc.HashPassword(u1Dto.Password).Return(u1.PasswordHash, nil)
 	hc.CheckPasswordHash(u1.PasswordHash, u1Dto.Password).Return(true)
-
-	hc.HashPassword(u2Dto.Password).Return(u2Dto.Password, nil)
 
 	mr := db.EXPECT()
 
@@ -289,20 +286,20 @@ func TestAddOrderHandler(t *testing.T) {
 
 	u1Dto := &models.UserDTO{
 		Login:    test,
-		Password: "",
+		Password: test,
 	}
 
-	u2Dto := &models.UserDTO{
+	u1Claims := &models.UserDTO{
 		Login:    test,
 		Password: "",
 	}
 
-	u3Dto := &models.UserDTO{
+	u2Dto := &models.UserDTO{
 		Login:    "test2",
-		Password: "",
+		Password: "test2",
 	}
 
-	u4Dto := &models.UserDTO{
+	u2Claims := &models.UserDTO{
 		Login:    "test2",
 		Password: "",
 	}
@@ -320,23 +317,15 @@ func TestAddOrderHandler(t *testing.T) {
 	}
 
 	hc := hashc.EXPECT()
-	hc.HashPassword(u1Dto.Password).Return(u1.PasswordHash, nil)
-	hc.HashPassword(u2Dto.Password).Return(u2.PasswordHash, nil)
-	hc.HashPassword(u3Dto.Password).Return(u2.PasswordHash, nil)
-	hc.HashPassword(u4Dto.Password).Return(u2.PasswordHash, nil)
-
-	hc.CheckPasswordHash(u1.PasswordHash, u1Dto.Password).Return(true)
-	hc.CheckPasswordHash(u2.PasswordHash, u2Dto.Password).Return(true)
-	hc.CheckPasswordHash(u2.PasswordHash, u3Dto.Password).Return(true)
-	hc.CheckPasswordHash(u2.PasswordHash, u4Dto.Password).Return(true)
+	hc.CheckPasswordHash(gomock.Any(), gomock.Any()).AnyTimes().Return(true)
 
 	mr := db.EXPECT()
 
 	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
-	mr.GetUser(gomock.Any(), u2Dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
 
-	mr.GetUser(gomock.Any(), u3Dto).AnyTimes().Return(u2, nil)
-	mr.GetUser(gomock.Any(), u4Dto).AnyTimes().Return(u2, nil)
+	mr.GetUser(gomock.Any(), u2Dto).AnyTimes().Return(u2, nil)
+	mr.GetUser(gomock.Any(), u2Claims).AnyTimes().Return(u2, nil)
 
 	mr.AddOrder(gomock.Any(), o1Dto).AnyTimes().Return(o1, nil)
 	mr.AddOrder(gomock.Any(), o2Dto).AnyTimes().Return(nil, models.ErrOrderWasRegisteredEarlier)
@@ -366,7 +355,7 @@ func TestAddOrderHandler(t *testing.T) {
 		{
 			name:    "Add order unauthorized",
 			url:     "/api/user/orders",
-			status:  401,
+			status:  http.StatusUnauthorized,
 			method:  http.MethodPost,
 			authReq: nil,
 			body:    49927398716,
@@ -374,7 +363,7 @@ func TestAddOrderHandler(t *testing.T) {
 		{
 			name:    "Add first order",
 			url:     "/api/user/orders",
-			status:  202,
+			status:  http.StatusAccepted,
 			method:  http.MethodPost,
 			authReq: &models.UserDTO{Login: test, Password: test},
 			body:    49927398716,
@@ -382,7 +371,7 @@ func TestAddOrderHandler(t *testing.T) {
 		{
 			name:    "Add same order",
 			url:     "/api/user/orders",
-			status:  200,
+			status:  http.StatusOK,
 			method:  http.MethodPost,
 			authReq: &models.UserDTO{Login: test, Password: test},
 			body:    1234567812345670,
@@ -390,7 +379,7 @@ func TestAddOrderHandler(t *testing.T) {
 		{
 			name:    "Add added order",
 			url:     "/api/user/orders",
-			status:  409,
+			status:  http.StatusConflict,
 			method:  http.MethodPost,
 			authReq: &models.UserDTO{Login: "test2", Password: "test2"},
 			body:    4026843483168683,
@@ -441,6 +430,11 @@ func TestGetOrdersHandler(t *testing.T) {
 	var ors []*models.Order
 	ors = append(ors, o1)
 
+	u1Claims := &models.UserDTO{
+		Login:    test,
+		Password: "",
+	}
+
 	u1Dto := &models.UserDTO{
 		Login:    test,
 		Password: test,
@@ -452,9 +446,13 @@ func TestGetOrdersHandler(t *testing.T) {
 		PasswordHash: test,
 	}
 
+	hc := hashc.EXPECT()
+	hc.CheckPasswordHash(gomock.Any(), gomock.Any()).AnyTimes().Return(true)
+
 	mr := db.EXPECT()
 
 	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
 	mr.GetUploadedOrders(gomock.Any(), u1).AnyTimes().Return(ors, nil)
 
 	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar(), time.Hour*1, hashc)

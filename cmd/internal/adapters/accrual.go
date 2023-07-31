@@ -12,10 +12,12 @@ import (
 
 	"github.com/ArtemShalinFe/gophermart/cmd/internal/config"
 	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
+	"go.uber.org/zap"
 )
 
 type Accrual struct {
 	httpClient *http.Client
+	log        *zap.SugaredLogger
 	host       string
 }
 
@@ -46,9 +48,10 @@ func (ae *AccrualErr) IsTooManyRequests() bool {
 	return errors.Is(ae.error, errTooManyRequests)
 }
 
-func NewAccrualClient(cfg config.Config) *Accrual {
+func NewAccrualClient(cfg config.Config, log *zap.SugaredLogger) *Accrual {
 	return &Accrual{
 		host:       cfg.Accrual,
+		log:        log,
 		httpClient: &http.Client{},
 	}
 }
@@ -63,7 +66,11 @@ func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*mo
 	if err != nil {
 		return nil, newAccrualErr(fmt.Errorf("failed exec accrual request err: %w", err), 0)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			a.log.Errorf("closing body was failed err: %w", err)
+		}
+	}()
 
 	if resp.StatusCode == http.StatusNoContent {
 		return nil, newAccrualErr(errOrderNotRegistered, 0)

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -21,8 +20,8 @@ import (
 )
 
 const (
-	timeoutServerShutdown = time.Second * 5
-	timeoutShutdown       = time.Second * 10
+	timeoutServerShutdown = time.Second * 10
+	timeoutShutdown       = time.Second * 30
 )
 
 func main() {
@@ -42,16 +41,18 @@ func run() (err error) {
 	}
 	log := zapl.Sugar()
 	defer func(log *zap.SugaredLogger) {
+		l := zap.L().Sugar()
 		if err := log.Sync(); err != nil {
+			fs := "cannot flush buffered log entries err: %w"
 			if runtime.GOOS == "darwin" {
 				if !errors.Is(err, errors.New("bad file descriptor")) {
-					fmt.Println("cannot flush buffered log entries err: %w", err)
+					l.Errorf(fs, err)
 				}
 			} else {
-				log.Errorf("cannot flush buffered log entries err: %w", err)
+				l.Errorf(fs, err)
 			}
 		}
-		log.Info("flush buffered log entries")
+		l.Info("flush buffered log entries")
 	}(log)
 
 	wg := &sync.WaitGroup{}
@@ -66,7 +67,7 @@ func run() (err error) {
 	log.Infof("config %+v", cfg)
 
 	// Init DB
-	db, err := db.NewDB(ctx, cfg.DSN)
+	db, err := db.NewDB(ctx, cfg.DSN, log)
 	if err != nil {
 		return fmt.Errorf("failed to initialize DB err: %w", err)
 	}
@@ -95,9 +96,6 @@ func run() (err error) {
 	srv := server.InitServer(ctx, h, *cfg, log, db)
 	go func(errs chan<- error) {
 		if err := srv.ListenAndServe(); err != nil {
-			if errors.Is(err, http.ErrServerClosed) {
-				return
-			}
 			errs <- fmt.Errorf("listen and server has failed: %w", err)
 		}
 	}(componentsErrs)

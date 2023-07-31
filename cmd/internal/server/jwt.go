@@ -26,7 +26,7 @@ func NewJWTToken(secretKey []byte, login string, tokenExp time.Duration) (string
 
 	tokenString, err := token.SignedString(secretKey)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get token signed string err: %w", err)
 	}
 
 	return tokenString, nil
@@ -54,7 +54,7 @@ func isAuthorized(tokenString string, secretKey []byte) (bool, error) {
 	return true, nil
 }
 
-func (h *Handlers) getUserFromJWTToken(w http.ResponseWriter, r *http.Request) (*models.User, error) {
+func (h *Handlers) getUserFromJWTToken(r *http.Request) (*models.User, error) {
 	authToken := r.Header.Get(authHeaderName)
 
 	claims := &Claims{}
@@ -70,7 +70,11 @@ func (h *Handlers) getUserFromJWTToken(w http.ResponseWriter, r *http.Request) (
 		Login: claims.Login,
 	}
 
-	return udto.GetUser(r.Context(), h.store)
+	u, err := udto.GetUser(r.Context(), h.store)
+	if err != nil {
+		return nil, fmt.Errorf("get user from jwt token was failed err: %w", err)
+	}
+	return u, nil
 }
 
 type key int
@@ -88,7 +92,7 @@ func (h *Handlers) JwtMiddleware(hr http.Handler) http.Handler {
 
 		authorized, err := isAuthorized(authToken, h.secretKey)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
@@ -97,7 +101,7 @@ func (h *Handlers) JwtMiddleware(hr http.Handler) http.Handler {
 			return
 		}
 
-		u, err := h.getUserFromJWTToken(w, r)
+		u, err := h.getUserFromJWTToken(r)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			h.log.Infof("failed to get user from JWT in JwtMiddleware err: %w ", err)

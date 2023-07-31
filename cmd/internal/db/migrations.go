@@ -4,6 +4,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -24,7 +25,15 @@ func runMigrations(dsn string) error {
 		return fmt.Errorf("failed to get a new migrate instance: %w", err)
 	}
 
-	defer m.Close()
+	defer func(m *migrate.Migrate) {
+		serr, dberr := m.Close()
+		if serr != nil {
+			log.Printf("close the source failed err: %v", serr)
+		}
+		if dberr != nil {
+			log.Printf("close the database failed err: %v", serr)
+		}
+	}(m)
 
 	if err := m.Up(); err != nil {
 		if !errors.Is(err, migrate.ErrNoChange) {

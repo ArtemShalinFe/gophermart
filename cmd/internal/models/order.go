@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -36,11 +37,19 @@ type OrderStorage interface {
 var ErrOrderWasRegisteredEarlier = errors.New("the order was registered earlier")
 
 func (o *OrderDTO) AddOrder(ctx context.Context, db OrderStorage) (*Order, error) {
-	return db.AddOrder(ctx, o)
+	or, err := db.AddOrder(ctx, o)
+	if err != nil {
+		return nil, fmt.Errorf("add order was failed err: %w", err)
+	}
+	return or, nil
 }
 
 func (o *OrderDTO) GetOrder(ctx context.Context, db OrderStorage) (*Order, error) {
-	return db.GetOrder(ctx, o)
+	or, err := db.GetOrder(ctx, o)
+	if err != nil {
+		return nil, fmt.Errorf("get order was failed err: %w", err)
+	}
+	return or, nil
 }
 
 func (o *OrderDTO) NumberIsCorrect() bool {
@@ -63,9 +72,16 @@ func (o *OrderDTO) NumberIsCorrect() bool {
 }
 
 func (o *Order) Update(ctx context.Context, db OrderStorage) error {
-	return db.UpdateOrder(ctx, o)
+	if err := db.UpdateOrder(ctx, o); err != nil {
+		return fmt.Errorf("update order was failed err: %w", err)
+	}
+	return nil
 }
 
 func GetOrdersForAccrual(ctx context.Context, db OrderStorage) ([]*Order, error) {
-	return db.GetOrdersForAccrual(ctx)
+	ors, err := db.GetOrdersForAccrual(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get orders for accrual was failed err: %w", err)
+	}
+	return ors, nil
 }

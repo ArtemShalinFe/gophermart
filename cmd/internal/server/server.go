@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -31,13 +32,15 @@ func InitServer(ctx context.Context, h *Handlers, cfg config.Config, log *zap.Su
 		log:                log,
 	}
 
-	a := adapters.NewAccrualClient(cfg)
+	a := adapters.NewAccrualClient(cfg, log)
 	go s.RunOrderAccruals(ctx, a, db)
 
 	return s
 }
 
 func initRouter(h *Handlers) *chi.Mux {
+	const orderPath = "/orders"
+
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
 	router.Use(h.RequestLogger)
@@ -54,7 +57,7 @@ func initRouter(h *Handlers) *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Use(h.JwtMiddleware)
 
-			r.Post("/orders", func(w http.ResponseWriter, r *http.Request) {
+			r.Post(orderPath, func(w http.ResponseWriter, r *http.Request) {
 				h.AddOrder(r.Context(), w, r)
 			})
 
@@ -72,7 +75,7 @@ func initRouter(h *Handlers) *chi.Mux {
 			// Автотесты "Яндекса" не позволяют сжимать результаты этих обработчиков.
 			// r.Use(CompressMiddleware)
 
-			r.Get("/orders", func(w http.ResponseWriter, r *http.Request) {
+			r.Get(orderPath, func(w http.ResponseWriter, r *http.Request) {
 				h.GetOrders(r.Context(), w, r)
 			})
 
@@ -86,11 +89,19 @@ func initRouter(h *Handlers) *chi.Mux {
 }
 
 func (s *Server) ListenAndServe() error {
-	return s.httpServer.ListenAndServe()
+	if err := s.httpServer.ListenAndServe(); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("server listen and serve err: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.httpServer.Shutdown(ctx)
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		return fmt.Errorf("server shutdown err: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) RunOrderAccruals(ctx context.Context, a *adapters.Accrual, db Storage) {

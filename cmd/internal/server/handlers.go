@@ -33,19 +33,24 @@ type HashController interface {
 }
 
 const authHeaderName = "Authorization"
-const ContentTypeJSON = "application/json"
+const contentTypeJSON = "application/json"
+const contentType = "Content-Type"
 
 var errUserUndefined = "user undefined"
 
 type Handlers struct {
-	log       *zap.SugaredLogger
 	store     Storage
+	hashc     HashController
+	log       *zap.SugaredLogger
 	secretKey []byte
 	tokenExp  time.Duration
-	hashc     HashController
 }
 
-func NewHandlers(secretKey []byte, db Storage, log *zap.SugaredLogger, tokenExp time.Duration, hashc HashController) (*Handlers, error) {
+func NewHandlers(secretKey []byte,
+	db Storage,
+	log *zap.SugaredLogger,
+	tokenExp time.Duration,
+	hashc HashController) (*Handlers, error) {
 	return &Handlers{
 		store:     db,
 		secretKey: secretKey,
@@ -94,13 +99,13 @@ func (h *Handlers) Register(ctx context.Context, w http.ResponseWriter, r *http.
 func (h *Handlers) Login(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	u, err := h.getLoginPsw(w, r)
 	if err != nil {
-		h.log.Errorf("failed to read the Login request body err: %w ", err)
+		h.log.Errorf("failed to read the Login request err: %w ", err)
 		return
 	}
 
 	us, err := h.getUser(ctx, w, u)
 	if err != nil {
-		h.log.Errorf("failed to get user the Login request body err: %w ", err)
+		h.log.Errorf("failed to get user the Login request err: %w ", err)
 		return
 	}
 
@@ -192,7 +197,7 @@ func (h *Handlers) GetOrders(ctx context.Context, w http.ResponseWriter, r *http
 		return
 	}
 
-	w.Header().Set("Content-Type", ContentTypeJSON)
+	w.Header().Set(contentType, contentTypeJSON)
 
 	if _, err = w.Write(b); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -238,7 +243,7 @@ func (h *Handlers) GetBalance(ctx context.Context, w http.ResponseWriter, r *htt
 		return
 	}
 
-	w.Header().Set("Content-Type", ContentTypeJSON)
+	w.Header().Set(contentType, contentTypeJSON)
 
 	if _, err = w.Write(b); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -307,7 +312,7 @@ func (h *Handlers) GetBalanceMovementHistory(ctx context.Context, w http.Respons
 		return
 	}
 
-	w.Header().Set("Content-Type", ContentTypeJSON)
+	w.Header().Set(contentType, contentTypeJSON)
 
 	if _, err = w.Write(b); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -343,13 +348,12 @@ func (h *Handlers) getUser(ctx context.Context, w http.ResponseWriter, u *models
 	if err != nil {
 		if errors.Is(err, models.ErrUnknowUser) {
 			w.WriteHeader(http.StatusUnauthorized)
-			return nil, err
+			return nil, fmt.Errorf("user is unauthorized err: %w", err)
 		}
 
-		h.log.Errorf("failed in the Register request err: %w ", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return nil, err
+		return nil, fmt.Errorf("error getting user: %w ", err)
 	}
 
-	return us, err
+	return us, nil
 }

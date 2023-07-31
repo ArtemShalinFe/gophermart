@@ -33,7 +33,13 @@ func (db *DB) AddWithdrawn(ctx context.Context, userID string, orderNumber strin
 		return fmt.Errorf("unable to start AddWithdrawn transaction err: %w", err)
 	}
 
-	defer tx.Commit(ctx)
+	defer func(tx pgx.Tx) {
+		if err := tx.Rollback(ctx); err != nil {
+			if !errors.Is(err, pgx.ErrTxClosed) {
+				db.log.Errorf("failed rollback transaction AddWithdrawn err: %w", err)
+			}
+		}
+	}(tx)
 
 	sql := `
 	INSERT INTO withdrawals(date, userid, orderNumber, sum)
@@ -44,11 +50,6 @@ func (db *DB) AddWithdrawn(ctx context.Context, userID string, orderNumber strin
 	}
 
 	if _, err := db.UpdateUserBalance(ctx, tx, userID, -sum); err != nil {
-		if errors.Is(err, models.ErrNotEnoughAccruals) {
-			if err := tx.Rollback(ctx); err != nil {
-				return fmt.Errorf("failed rollback transaction AddWithdrawn err: %w", err)
-			}
-		}
 		return fmt.Errorf("failed update user balance. AddWithdrawn err: %w", err)
 	}
 
