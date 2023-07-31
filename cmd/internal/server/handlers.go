@@ -279,6 +279,10 @@ func (h *Handlers) AddBalanceWithdrawn(ctx context.Context, w http.ResponseWrite
 	}
 
 	if err := u.AddWithdrawn(ctx, h.store, req.Order, req.Sum); err != nil {
+		if errors.Is(err, models.ErrNotEnoughAccruals) {
+			w.WriteHeader(http.StatusPaymentRequired)
+			return
+		}
 		w.WriteHeader(http.StatusBadRequest)
 		h.log.Errorf("failed to add withdrawal err: %w", err)
 		return

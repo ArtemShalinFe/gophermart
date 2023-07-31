@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 )
 
-func TestRegisterHandler(t *testing.T) {
+func TestHandlers_Register(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -134,7 +133,7 @@ func TestRegisterHandler(t *testing.T) {
 	}
 }
 
-func TestLoginHandler(t *testing.T) {
+func TestHandlers_Login(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -237,7 +236,7 @@ func TestLoginHandler(t *testing.T) {
 	}
 }
 
-func TestAddOrderHandler(t *testing.T) {
+func TestHandlers_AddOrder(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -415,7 +414,7 @@ func TestAddOrderHandler(t *testing.T) {
 	}
 }
 
-func TestGetOrdersHandler(t *testing.T) {
+func TestHandlers_GetOrders(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -529,6 +528,360 @@ func TestGetOrdersHandler(t *testing.T) {
 			require.Equal(t, v.wantOrdersCount, len(os),
 				fmt.Sprintf("TestGetOrdersHandler len orders: %s URL: %s, want: %d, have: %d",
 					v.name, v.url, v.status, resp.StatusCode))
+		}
+	}
+}
+
+func TestHandlers_GetBalance(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	hashc := NewMockHashController(ctrl)
+
+	var test = "test"
+
+	u1Claims := &models.UserDTO{
+		Login:    test,
+		Password: "",
+	}
+
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: test,
+	}
+
+	u1 := &models.User{
+		ID:           "1",
+		Login:        test,
+		PasswordHash: test,
+	}
+
+	hc := hashc.EXPECT()
+	hc.CheckPasswordHash(gomock.Any(), gomock.Any()).AnyTimes().Return(true)
+
+	mr := db.EXPECT()
+
+	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
+	mr.GetWithdrawals(gomock.Any(), u1.ID).AnyTimes().Return(999.1, nil)
+	mr.GetCurrentBalance(gomock.Any(), u1.ID).AnyTimes().Return(99.9, nil)
+
+	h, err := NewHandlers([]byte("keyGetBalance"), db, zap.L().Sugar(), time.Hour*1, hashc)
+	if err != nil {
+		t.Error(err)
+	}
+	r := initRouter(h)
+
+	testServer := httptest.NewServer(r)
+	defer testServer.Close()
+
+	var tests = []struct {
+		authReq       any
+		body          any
+		name          string
+		url           string
+		method        string
+		status        int
+		wantCurrent   float64
+		wantWithdrawn float64
+	}{
+		{
+			name:    "Get orders unauthorized",
+			url:     "/api/user/balance",
+			status:  401,
+			method:  http.MethodGet,
+			authReq: nil,
+		},
+		{
+			name:          "Get orders",
+			url:           "/api/user/balance",
+			status:        200,
+			method:        http.MethodGet,
+			authReq:       &models.UserDTO{Login: test, Password: test},
+			wantCurrent:   99.9,
+			wantWithdrawn: 999.1,
+		},
+	}
+
+	for _, v := range tests {
+		v := v
+
+		b, err := json.Marshal(v.body)
+		if err != nil {
+			t.Error(err)
+		}
+
+		resp, bytes := testRequest(t,
+			testServer,
+			v.method,
+			v.url,
+			GetAuthorizationToken(t, testServer, v.authReq),
+			bytes.NewBuffer(b))
+
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
+
+		require.Equal(t, v.status, resp.StatusCode,
+			fmt.Sprintf("TestGetBalance status code: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
+
+		if resp.StatusCode == http.StatusOK {
+			r := struct {
+				Current   float64 `json:"current"`
+				Withdrawn float64 `json:"withdrawn"`
+			}{}
+
+			if err := json.Unmarshal(bytes, &r); err != nil {
+				t.Error(err)
+			}
+
+			require.Equal(t, v.wantCurrent, r.Current,
+				fmt.Sprintf("TestGetBalance current balance: %s URL: %s, want: %g, have: %g",
+					v.name, v.url, v.wantCurrent, r.Current))
+
+			require.Equal(t, v.wantWithdrawn, r.Withdrawn,
+				fmt.Sprintf("TestGetBalance withdrawn: %s URL: %s, want: %g, have: %g",
+					v.name, v.url, v.wantWithdrawn, r.Withdrawn))
+		}
+	}
+}
+
+func TestHandlers_AddBalanceWithdrawn(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	hashc := NewMockHashController(ctrl)
+
+	var test = "test"
+
+	u1Claims := &models.UserDTO{
+		Login:    test,
+		Password: "",
+	}
+
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: test,
+	}
+
+	u1 := &models.User{
+		ID:           "1",
+		Login:        test,
+		PasswordHash: test,
+	}
+
+	hc := hashc.EXPECT()
+	hc.CheckPasswordHash(gomock.Any(), gomock.Any()).AnyTimes().Return(true)
+
+	mr := db.EXPECT()
+	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
+
+	mr.AddWithdrawn(gomock.Any(), u1.ID, "1", 10.1).AnyTimes().Return(nil)
+	mr.AddWithdrawn(gomock.Any(), u1.ID, "2", 20.1).AnyTimes().Return(models.ErrNotEnoughAccruals)
+
+	h, err := NewHandlers([]byte("keyAddBalanceWDN"), db, zap.L().Sugar(), time.Hour*1, hashc)
+	if err != nil {
+		t.Error(err)
+	}
+	r := initRouter(h)
+
+	testServer := httptest.NewServer(r)
+	defer testServer.Close()
+
+	var tests = []struct {
+		authReq any
+		name    string
+		url     string
+		method  string
+		order   string
+		status  int
+		sum     float64
+	}{
+		{
+			name:    "AddBalanceWithdrawn unauthorized",
+			url:     "/api/user/balance/withdraw",
+			status:  401,
+			method:  http.MethodPost,
+			authReq: nil,
+		},
+		{
+			name:    "AddBalanceWithdrawn",
+			url:     "/api/user/balance/withdraw",
+			status:  200,
+			method:  http.MethodPost,
+			authReq: &models.UserDTO{Login: test, Password: test},
+			order:   "1",
+			sum:     10.1,
+		},
+		{
+			name:    "AddBalanceWithdrawn not enough accruals",
+			url:     "/api/user/balance/withdraw",
+			status:  402,
+			method:  http.MethodPost,
+			authReq: &models.UserDTO{Login: test, Password: test},
+			order:   "2",
+			sum:     20.1,
+		},
+	}
+
+	for _, v := range tests {
+		v := v
+
+		req := struct {
+			Order string  `json:"order"`
+			Sum   float64 `json:"sum"`
+		}{
+			Order: v.order,
+			Sum:   v.sum,
+		}
+
+		b, err := json.Marshal(req)
+		if err != nil {
+			t.Error(err)
+		}
+
+		resp, _ := testRequest(t,
+			testServer,
+			v.method,
+			v.url,
+			GetAuthorizationToken(t, testServer, v.authReq),
+			bytes.NewBuffer(b))
+
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
+
+		require.Equal(t, v.status, resp.StatusCode,
+			fmt.Sprintf("TestAddBalanceWithdrawn status code: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
+	}
+}
+
+func TestHandlers_GetBalanceMovementHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	hashc := NewMockHashController(ctrl)
+
+	var test = "test"
+
+	u1Claims := &models.UserDTO{
+		Login:    test,
+		Password: "",
+	}
+
+	u1Dto := &models.UserDTO{
+		Login:    test,
+		Password: test,
+	}
+
+	u1 := &models.User{
+		ID:           "1",
+		Login:        test,
+		PasswordHash: test,
+	}
+
+	hc := hashc.EXPECT()
+	hc.CheckPasswordHash(gomock.Any(), gomock.Any()).AnyTimes().Return(true)
+
+	mr := db.EXPECT()
+	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
+	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
+
+	currentTime := time.Now()
+
+	var m []*models.UserWithdrawalsHistory
+	h1 := &models.UserWithdrawalsHistory{
+		ProcessedAt: currentTime,
+		OrderNumber: "1",
+		Sum:         123.3,
+	}
+	h2 := &models.UserWithdrawalsHistory{
+		ProcessedAt: currentTime.AddDate(0, -1, 0),
+		OrderNumber: "2",
+		Sum:         123.3,
+	}
+	h3 := &models.UserWithdrawalsHistory{
+		ProcessedAt: currentTime.AddDate(0, -2, 0),
+		OrderNumber: "3",
+		Sum:         123.3,
+	}
+	m = append(m, h1, h2, h3)
+	mr.GetWithdrawalList(gomock.Any(), u1.ID).AnyTimes().Return(m, nil)
+
+	h, err := NewHandlers([]byte("keyGetBalanceMovHistory"), db, zap.L().Sugar(), time.Hour*1, hashc)
+	if err != nil {
+		t.Error(err)
+	}
+	r := initRouter(h)
+
+	testServer := httptest.NewServer(r)
+	defer testServer.Close()
+
+	var tests = []struct {
+		authReq any
+		body    any
+		name    string
+		url     string
+		method  string
+		status  int
+		wantLen int
+	}{
+		{
+			name:    "Get withdrawals unauthorized",
+			url:     "/api/user/withdrawals",
+			status:  401,
+			method:  http.MethodGet,
+			authReq: nil,
+		},
+		{
+			name:    "Get withdrawals",
+			url:     "/api/user/withdrawals",
+			status:  200,
+			method:  http.MethodGet,
+			authReq: &models.UserDTO{Login: test, Password: test},
+			wantLen: 3,
+		},
+	}
+
+	for _, v := range tests {
+		v := v
+
+		b, err := json.Marshal(v.body)
+		if err != nil {
+			t.Error(err)
+		}
+
+		resp, bytes := testRequest(t,
+			testServer,
+			v.method,
+			v.url,
+			GetAuthorizationToken(t, testServer, v.authReq),
+			bytes.NewBuffer(b))
+
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
+
+		require.Equal(t, v.status, resp.StatusCode,
+			fmt.Sprintf("TestGetWithdrawals status code: %s URL: %s, want: %d, have: %d",
+				v.name, v.url, v.status, resp.StatusCode))
+
+		if resp.StatusCode == http.StatusOK {
+			var r []*models.UserWithdrawalsHistory
+
+			if err := json.Unmarshal(bytes, &r); err != nil {
+				t.Error(err)
+			}
+
+			require.Equal(t, v.wantLen, len(r),
+				fmt.Sprintf("TestGetWithdrawals current balance: %s URL: %s, want: %d, have: %d",
+					v.name, v.url, v.status, len(r)))
 		}
 	}
 }

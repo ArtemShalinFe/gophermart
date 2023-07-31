@@ -1,8 +1,8 @@
 # Gophermart
 
-![Made](https://img.shields.io/badge/Made%20with-Go-1f425f.svg) [![codecov](https://codecov.io/gh/ArtemShalinFe/gophermart/branch/master/graph/badge.svg?token=1H84IB1DO1)](https://codecov.io/gh/ArtemShalinFe/gophermart) [![Go Report Card](https://goreportcard.com/badge/github.com/ArtemShalinFe/metcoll)](https://goreportcard.com/report/github.com/ArtemShalinFe/metcoll) [![codebeat badge](https://codebeat.co/badges/82ddd548-2bf1-4071-a4e7-f74136226364)](https://codebeat.co/projects/github-com-artemshalinfe-gophermart-master)
+[![codecov](https://codecov.io/gh/ArtemShalinFe/gophermart/branch/master/graph/badge.svg?token=1H84IB1DO1)](https://codecov.io/gh/ArtemShalinFe/gophermart) [![Go Report Card](https://goreportcard.com/badge/github.com/ArtemShalinFe/metcoll)](https://goreportcard.com/report/github.com/ArtemShalinFe/metcoll)
 
-Индивидуальный дипломный проекта курса «Go-разработчик».
+Индивидуальный дипломный проекта курса «Go-разработчик». ![Made](https://img.shields.io/badge/Made%20with-Go-1f425f.svg) 
 
 ## Требования к окружению
 
@@ -35,6 +35,8 @@ make build
 ```sh
 docker compose --env-file .env up -d --force-recreate 
 ```
+
+> Файлы базы данных создаются во временной директории: `/tmp/gopermart/db/data`
 
 ### Запуск тестов
 
