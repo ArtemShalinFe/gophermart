@@ -124,7 +124,9 @@ func TestRegisterHandler(t *testing.T) {
 		}
 
 		resp, _ := testRequest(t, testServer, v.method, v.url, "", bytes.NewBuffer(b))
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
 
 		require.Equal(t, v.status, resp.StatusCode,
 			fmt.Sprintf("TestRegisterHandler: %s URL: %s, want: %d, have: %d",
@@ -225,7 +227,9 @@ func TestLoginHandler(t *testing.T) {
 			"",
 			bytes.NewBuffer(b))
 
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
 
 		require.Equal(t, v.status, resp.StatusCode,
 			fmt.Sprintf("TestLoginHandler: %s URL: %s, want: %d, have: %d",
@@ -401,7 +405,9 @@ func TestAddOrderHandler(t *testing.T) {
 			GetAuthorizationToken(t, testServer, v.authReq),
 			bytes.NewBuffer(b))
 
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
 
 		require.Equal(t, v.status, resp.StatusCode,
 			fmt.Sprintf("TestAddOrderHandler: %s URL: %s, want: %d, have: %d",
@@ -455,7 +461,7 @@ func TestGetOrdersHandler(t *testing.T) {
 	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
 	mr.GetUploadedOrders(gomock.Any(), u1).AnyTimes().Return(ors, nil)
 
-	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar(), time.Hour*1, hashc)
+	h, err := NewHandlers([]byte("keyGetOrder"), db, zap.L().Sugar(), time.Hour*1, hashc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -505,7 +511,9 @@ func TestGetOrdersHandler(t *testing.T) {
 			GetAuthorizationToken(t, testServer, v.authReq),
 			bytes.NewBuffer(b))
 
-		defer resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
 
 		require.Equal(t, v.status, resp.StatusCode,
 			fmt.Sprintf("TestGetOrdersHandler status code: %s URL: %s, want: %d, have: %d",
@@ -538,7 +546,9 @@ func GetAuthorizationToken(t *testing.T, ts *httptest.Server, authReq any) strin
 	}
 
 	resp, _ := testRequest(t, ts, http.MethodPost, "/api/user/login", "", bytes.NewBuffer(b))
-	defer resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Error(err)
+	}
 
 	return resp.Header.Get(authHeaderName)
 }
@@ -559,7 +569,11 @@ func testRequest(t *testing.T, ts *httptest.Server,
 
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
