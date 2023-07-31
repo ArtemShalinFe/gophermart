@@ -33,10 +33,6 @@ type OrderStorage interface {
 	AddWithdrawn(ctx context.Context, userID string, orderNumber string, sum float64) error
 }
 
-type AccrualService interface {
-	GetOrderAccrual(ctx context.Context, order *Order) (*OrderAccrual, error)
-}
-
 var ErrOrderWasRegisteredEarlier = errors.New("the order was registered earlier")
 
 func (o *OrderDTO) AddOrder(ctx context.Context, db OrderStorage) (*Order, error) {

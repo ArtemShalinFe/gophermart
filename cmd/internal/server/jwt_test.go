@@ -3,6 +3,7 @@ package server
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewJWTToken(t *testing.T) {
@@ -43,7 +44,7 @@ func TestNewJWTToken(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewJWTToken(tt.args.secretKey, tt.args.login, tt.args.password)
+			got, err := NewJWTToken(tt.args.secretKey, tt.args.login, time.Hour*1)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewJWTToken() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -60,16 +61,18 @@ func TestIsAuthorized(t *testing.T) {
 		login     string
 		password  string
 		secretKey []byte
+		tokenExp  time.Duration
 	}
 
 	key := []byte("TrueKey")
 	brokenkey := []byte("BrokenKey")
 
 	tests := []struct {
-		name    string
-		args    args
-		want    bool
-		wantErr bool
+		name      string
+		args      args
+		needSleep bool
+		want      bool
+		wantErr   bool
 	}{
 		{
 			name: "Positive case",
@@ -77,9 +80,11 @@ func TestIsAuthorized(t *testing.T) {
 				secretKey: key,
 				login:     "test",
 				password:  "test",
+				tokenExp:  time.Hour * 1,
 			},
-			want:    true,
-			wantErr: false,
+			needSleep: false,
+			want:      true,
+			wantErr:   false,
 		},
 		{
 			name: "Negative case",
@@ -87,20 +92,38 @@ func TestIsAuthorized(t *testing.T) {
 				secretKey: brokenkey,
 				login:     "test",
 				password:  "test",
+				tokenExp:  time.Hour * 1,
 			},
-			want:    false,
-			wantErr: true,
+			needSleep: false,
+			want:      false,
+			wantErr:   true,
+		},
+		{
+			name: "Expiration case",
+			args: args{
+				secretKey: brokenkey,
+				login:     "test",
+				password:  "test",
+				tokenExp:  time.Millisecond * 1,
+			},
+			needSleep: true,
+			want:      false,
+			wantErr:   true,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tokenString, err := NewJWTToken(key, tt.args.login, tt.args.password)
+			tokenString, err := NewJWTToken(key, tt.args.login, tt.args.tokenExp)
 			if err != nil {
 				t.Error(err)
 			}
 
-			got, err := IsAuthorized(tokenString, tt.args.secretKey)
+			if tt.needSleep {
+				time.Sleep(time.Second * 1)
+			}
+
+			got, err := isAuthorized(tokenString, tt.args.secretKey)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("IsAuthorized() error = %v, wantErr %v", err, tt.wantErr)
 				return

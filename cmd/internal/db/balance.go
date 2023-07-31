@@ -5,33 +5,23 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 )
 
 func (db *DB) GetCurrentBalance(ctx context.Context, userID string) (float64, error) {
-	tx, err := db.pool.Begin(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("unable to start GetCurrentBalance transaction err: %w", err)
-	}
-
-	defer tx.Rollback(ctx)
-
 	sql := `
 	SELECT sum
 	FROM currentBalances
 	WHERE userId = $1;`
 
 	var b float64
-	row := tx.QueryRow(ctx, sql, userID)
+	row := db.pool.QueryRow(ctx, sql, userID)
 	if err := row.Scan(&b); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return 0, fmt.Errorf("db GetCurrentBalance err: %w", err)
 		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, fmt.Errorf("failed commit transaction GetCurrentBalance err: %w", err)
 	}
 
 	return b, nil
@@ -70,41 +60,23 @@ func (db *DB) AddWithdrawn(ctx context.Context, userID string, orderNumber strin
 }
 
 func (db *DB) GetWithdrawals(ctx context.Context, userID string) (float64, error) {
-	tx, err := db.pool.Begin(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("unable to start GetWithdrawals transaction err: %w", err)
-	}
-
-	defer tx.Rollback(ctx)
-
 	sql := `
 	SELECT coalesce(sum(sum),0)
 	FROM withdrawals
 	WHERE userId = $1;`
 
 	var b float64
-	row := tx.QueryRow(ctx, sql, userID)
+	row := db.pool.QueryRow(ctx, sql, userID)
 	if err := row.Scan(&b); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return 0, fmt.Errorf("db GetWithdrawals err: %w", err)
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return 0, fmt.Errorf("failed commit transaction GetWithdrawals err: %w", err)
-	}
-
 	return b, nil
 }
 
 func (db *DB) GetWithdrawalList(ctx context.Context, userID string) ([]*models.UserWithdrawalsHistory, error) {
-	tx, err := db.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to start GetWithdrawalList transaction err: %w", err)
-	}
-
-	defer tx.Rollback(ctx)
-
 	sql := `
 	SELECT date, orderNumber, sum
 	FROM withdrawals
@@ -113,10 +85,11 @@ func (db *DB) GetWithdrawalList(ctx context.Context, userID string) ([]*models.U
 
 	var m []*models.UserWithdrawalsHistory
 
-	rows, err := tx.Query(ctx, sql, userID)
+	rows, err := db.pool.Query(ctx, sql, userID)
 	if err != nil {
 		return nil, fmt.Errorf("db GetWithdrawalList err: %w", err)
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var ub models.UserWithdrawalsHistory
@@ -125,10 +98,6 @@ func (db *DB) GetWithdrawalList(ctx context.Context, userID string) ([]*models.U
 		}
 
 		m = append(m, &ub)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed commit transaction GetWithdrawalList err: %w", err)
 	}
 
 	return m, nil

@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"time"
 )
@@ -13,9 +12,9 @@ type UserDTO struct {
 }
 
 type User struct {
-	ID             string `json:"uuid"`
-	Login          string `json:"login"`
-	PasswordBase64 string `json:"password"`
+	ID           string `json:"uuid"`
+	Login        string `json:"login"`
+	PasswordHash string `json:"password"`
 }
 
 type UserWithdrawalsHistory struct {
@@ -53,8 +52,8 @@ func (u *UserDTO) GetUser(ctx context.Context, db UserStorage) (*User, error) {
 	return db.GetUser(ctx, u)
 }
 
-func (o *User) GetUploadedOrders(ctx context.Context, db UserStorage) ([]*Order, error) {
-	return db.GetUploadedOrders(ctx, o)
+func (u *User) GetUploadedOrders(ctx context.Context, db UserStorage) ([]*Order, error) {
+	return db.GetUploadedOrders(ctx, u)
 }
 
 func (u *User) GetUserBalance(ctx context.Context, db UserStorage) (float64, error) {
@@ -71,8 +70,4 @@ func (u *User) GetWithdrawalList(ctx context.Context, db UserStorage) ([]*UserWi
 
 func (u *User) AddWithdrawn(ctx context.Context, db OrderStorage, orderNumber string, sum float64) error {
 	return db.AddWithdrawn(ctx, u.ID, orderNumber, sum)
-}
-
-func EncodePassword(password string) string {
-	return base64.StdEncoding.EncodeToString([]byte(password))
 }

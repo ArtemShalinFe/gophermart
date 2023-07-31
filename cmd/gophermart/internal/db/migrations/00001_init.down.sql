@@ -1,8 +1,0 @@
-BEGIN TRANSACTION;
-
-DROP TABLE CurrentBalances;
-DROP TABLE Withdrawals;
-DROP TABLE Orders;
-DROP TABLE Users;
-
-COMMIT;

@@ -1,30 +1,27 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 )
 
 type Claims struct {
 	jwt.RegisteredClaims
-	Login    string
-	Password string
+	Login string
 }
 
-func NewJWTToken(secretKey []byte, login string, password string) (string, error) {
-	const tokenExp = time.Hour * 1
-
+func NewJWTToken(secretKey []byte, login string, tokenExp time.Duration) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
 		},
-		Login:    login,
-		Password: password,
+		Login: login,
 	})
 
 	tokenString, err := token.SignedString(secretKey)
@@ -35,7 +32,7 @@ func NewJWTToken(secretKey []byte, login string, password string) (string, error
 	return tokenString, nil
 }
 
-func IsAuthorized(tokenString string, secretKey []byte) (bool, error) {
+func isAuthorized(tokenString string, secretKey []byte) (bool, error) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims,
@@ -57,7 +54,7 @@ func IsAuthorized(tokenString string, secretKey []byte) (bool, error) {
 	return true, nil
 }
 
-func (h *Handlers) GetUserFromJWTToken(w http.ResponseWriter, r *http.Request) (*models.User, error) {
+func (h *Handlers) getUserFromJWTToken(w http.ResponseWriter, r *http.Request) (*models.User, error) {
 	authToken := r.Header.Get(authHeaderName)
 
 	claims := &Claims{}
@@ -70,25 +67,44 @@ func (h *Handlers) GetUserFromJWTToken(w http.ResponseWriter, r *http.Request) (
 	}
 
 	udto := models.UserDTO{
-		Login:    claims.Login,
-		Password: claims.Password,
+		Login: claims.Login,
 	}
 
 	return udto.GetUser(r.Context(), h.store)
+}
+
+type key int
+
+var userKey key
+
+func userFromContext(ctx context.Context) (*models.User, bool) {
+	u, ok := ctx.Value(userKey).(*models.User)
+	return u, ok
 }
 
 func (h *Handlers) JwtMiddleware(hr http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authToken := r.Header.Get(authHeaderName)
 
-		authorized, err := IsAuthorized(authToken, h.secretKey)
+		authorized, err := isAuthorized(authToken, h.secretKey)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 
-		if authorized {
-			hr.ServeHTTP(w, r)
+		if !authorized {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
+
+		u, err := h.getUserFromJWTToken(w, r)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			h.log.Infof("failed to get user from JWT in JwtMiddleware err: %w ", err)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), userKey, u)
+		hr.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

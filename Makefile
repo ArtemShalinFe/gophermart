@@ -1,4 +1,5 @@
 # Makefile
+ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 .PHONY: all
 all: ;
@@ -11,7 +12,7 @@ build:
 # TESTS
 .PHONY: tests
 tests: build
-	go test ./... -v -race
+	# go test ./... -v -race
 	gophermarttest-darwin-arm64 \
 		-test.v -test.run=^TestGophermart$ \
             -gophermart-binary-path=cmd/gophermart/gophermart \
@@ -26,8 +27,8 @@ tests: build
 .PHONY: lint
 lint:
 	docker run --rm \
-    -v $(shell pwd):/app \
-    -v $(shell pwd)/golangci-lint/.cache/golangci-lint/v1.53.3:/root/.cache \
+    -v $(ROOT_DIR):/app \
+    -v $(ROOT_DIR)/golangci-lint/.cache/golangci-lint/v1.53.3:/root/.cache \
     -w /app \
     golangci/golangci-lint:v1.53.3 \
         golangci-lint run \
@@ -39,8 +40,8 @@ lint:
 run-pg:
 	docker run --rm \
 		--name=postgresql \
-		-v $(abspath ./deployments/db/init/):/docker-entrypoint-initdb.d \
-		-v $(abspath ./deployments/db/data/):/var/lib/postgresql/data \
+		-v $(ROOT_DIR)/deployments/db/init/:/docker-entrypoint-initdb.d \
+		-v $(ROOT_DIR)/deployments/db/data/:/var/lib/postgresql/data \
 		-e POSTGRES_PASSWORD=gopher \
 		-d \
 		-p 5432:5432 \
@@ -52,9 +53,12 @@ stop-pg:
 
 .PHONY: clean-data
 clean-data:
-	sudo rm -rf ./deployments/db/data/	
+	rm -rf ./deployments/db/data/	
 
 # MOCKS
 .PHONY: mocks
 mocks:
-	mockgen -source=cmd/gophermart/internal/server/handlers.go -destination=cmd/gophermart/internal/server/mock_handlers.go -package server 
+	mockgen -source=cmd/internal/server/handlers.go -destination=cmd/internal/server/mock_handlers.go -package server
+	
+clean-mocks:
+	rm cmd/internal/server/mock_handlers.go

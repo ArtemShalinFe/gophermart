@@ -14,9 +14,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/config"
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/db"
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/server"
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/config"
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/db"
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/security"
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/server"
 )
 
 const (
@@ -34,32 +35,31 @@ func run() (err error) {
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelCtx()
 
-	wg := &sync.WaitGroup{}
-	defer func() {
-		wg.Wait()
-	}()
-
 	// Init logger
 	zapl, err := zap.NewProduction()
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger err: %w ", err)
 	}
 	log := zapl.Sugar()
-
-	componentsErrs := make(chan error, 1)
-
-	wg.Add(1)
-	go func(errs chan<- error) {
-		defer log.Info("flush buffered log entries")
-		defer wg.Done()
-		<-ctx.Done()
-
+	defer func(log *zap.SugaredLogger) {
 		if err := log.Sync(); err != nil {
-			if runtime.GOOS != "darwin" {
-				errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+			if runtime.GOOS == "darwin" {
+				if !errors.Is(err, errors.New("bad file descriptor")) {
+					fmt.Println("cannot flush buffered log entries err: %w", err)
+				}
+			} else {
+				log.Errorf("cannot flush buffered log entries err: %w", err)
 			}
 		}
-	}(componentsErrs)
+		log.Info("flush buffered log entries")
+	}(log)
+
+	wg := &sync.WaitGroup{}
+	defer func() {
+		wg.Wait()
+	}()
+
+	componentsErrs := make(chan error, 1)
 
 	// Get config
 	cfg := config.GetConfig()
@@ -81,15 +81,20 @@ func run() (err error) {
 	}()
 
 	// Init Handlers
-	h, err := server.NewHandlers(cfg.Key, db, log)
+	hashc, err := security.NewHashController()
+	if err != nil {
+		return fmt.Errorf("failed to initialize hashcontroller err: %w", err)
+	}
+
+	h, err := server.NewHandlers(cfg.Key, db, log, cfg.TokenExp, hashc)
 	if err != nil {
 		return fmt.Errorf("failed to initialize handlers err: %w", err)
 	}
 
 	// Init and run Server
-	srv := server.InitServer(ctx, h, cfg, log, db)
+	srv := server.InitServer(ctx, h, *cfg, log, db)
 	go func(errs chan<- error) {
-		if err := srv.HTTPServer.ListenAndServe(); err != nil {
+		if err := srv.ListenAndServe(); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				return
 			}
@@ -106,7 +111,7 @@ func run() (err error) {
 
 		shutdownTimeoutCtx, cancelShutdownTimeoutCtx := context.WithTimeout(context.Background(), timeoutServerShutdown)
 		defer cancelShutdownTimeoutCtx()
-		if err := srv.HTTPServer.Shutdown(shutdownTimeoutCtx); err != nil {
+		if err := srv.Shutdown(shutdownTimeoutCtx); err != nil {
 			log.Errorf("an error occurred during server shutdown: %v", err)
 		}
 	}()
@@ -123,7 +128,7 @@ func run() (err error) {
 		defer cancelCtx()
 
 		<-ctx.Done()
-		log.Error("failed to gracefully shutdown the service")
+		log.Fatal("failed to gracefully shutdown the service")
 	}()
 
 	return nil

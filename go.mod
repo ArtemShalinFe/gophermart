@@ -6,6 +6,7 @@ require (
 	github.com/go-chi/chi v1.5.4
 	github.com/spf13/viper v1.16.0
 	go.uber.org/mock v0.2.0
+	golang.org/x/crypto v0.9.0
 )
 
 require (
@@ -20,7 +21,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
 )
 

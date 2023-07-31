@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/gophermart/internal/models"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+
+	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 )
 
 func TestRegisterHandler(t *testing.T) {
@@ -22,23 +23,28 @@ func TestRegisterHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
+	hashc := NewMockHashController(ctrl)
 
 	var test = "test"
 
 	u1Dto := &models.UserDTO{
 		Login:    test,
-		Password: models.EncodePassword(test),
+		Password: test,
 	}
 
 	u2Dto := &models.UserDTO{
 		Login:    "test2",
-		Password: models.EncodePassword("test3"),
+		Password: "test3",
 	}
 
 	u1 := &models.User{
-		Login:          test,
-		PasswordBase64: models.EncodePassword(test),
+		Login:        test,
+		PasswordHash: test,
 	}
+
+	hc := hashc.EXPECT()
+	hc.HashPassword(u1Dto.Password).Return(u1.PasswordHash, nil)
+	hc.HashPassword(u2Dto.Password).Return(u2Dto.Password, nil)
 
 	mr := db.EXPECT()
 
@@ -47,7 +53,7 @@ func TestRegisterHandler(t *testing.T) {
 
 	mr.AddUser(gomock.Any(), u2Dto).After(addUserCall).Return(nil, models.ErrLoginIsBusy)
 
-	h, err := NewHandlers([]byte("keyRegister"), db, zap.L().Sugar())
+	h, err := NewHandlers([]byte("keyRegister"), db, zap.L().Sugar(), time.Hour*1, hashc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -131,30 +137,37 @@ func TestLoginHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
+	hashc := NewMockHashController(ctrl)
 
 	var test = "test"
 
 	u1Dto := &models.UserDTO{
 		Login:    test,
-		Password: models.EncodePassword(test),
+		Password: test,
 	}
 
 	u2Dto := &models.UserDTO{
 		Login:    "test2",
-		Password: models.EncodePassword("broken password 123"),
+		Password: "broken password 123",
 	}
 
 	u1 := &models.User{
-		Login:          test,
-		PasswordBase64: models.EncodePassword(test),
+		Login:        test,
+		PasswordHash: test,
 	}
+
+	hc := hashc.EXPECT()
+	hc.HashPassword(u1Dto.Password).Return(u1.PasswordHash, nil)
+	hc.CheckPasswordHash(u1.PasswordHash, u1Dto.Password).Return(true)
+
+	hc.HashPassword(u2Dto.Password).Return(u2Dto.Password, nil)
 
 	mr := db.EXPECT()
 
 	mr.GetUser(gomock.Any(), u1Dto).Return(u1, nil)
 	mr.GetUser(gomock.Any(), u2Dto).Return(nil, models.ErrUnknowUser)
 
-	h, err := NewHandlers([]byte("keyLogin"), db, zap.L().Sugar())
+	h, err := NewHandlers([]byte("keyLogin"), db, zap.L().Sugar(), time.Hour*1, hashc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -228,8 +241,7 @@ func TestAddOrderHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
-
-	var test = "test"
+	hashc := NewMockHashController(ctrl)
 
 	o1Dto := &models.OrderDTO{
 		Number: "49927398716",
@@ -273,37 +285,50 @@ func TestAddOrderHandler(t *testing.T) {
 		UploadedAt: time.Now(),
 	}
 
+	var test = "test"
+
 	u1Dto := &models.UserDTO{
 		Login:    test,
-		Password: models.EncodePassword(test),
+		Password: "",
 	}
 
 	u2Dto := &models.UserDTO{
 		Login:    test,
-		Password: test,
+		Password: "",
 	}
 
 	u3Dto := &models.UserDTO{
 		Login:    "test2",
-		Password: models.EncodePassword("test2"),
+		Password: "",
 	}
 
 	u4Dto := &models.UserDTO{
 		Login:    "test2",
-		Password: "test2",
+		Password: "",
 	}
 
 	u1 := &models.User{
-		ID:             "1",
-		Login:          test,
-		PasswordBase64: models.EncodePassword(test),
+		ID:           "1",
+		Login:        test,
+		PasswordHash: test,
 	}
 
 	u2 := &models.User{
-		ID:             "2",
-		Login:          "test2",
-		PasswordBase64: models.EncodePassword("test2"),
+		ID:           "2",
+		Login:        "test2",
+		PasswordHash: "test2",
 	}
+
+	hc := hashc.EXPECT()
+	hc.HashPassword(u1Dto.Password).Return(u1.PasswordHash, nil)
+	hc.HashPassword(u2Dto.Password).Return(u2.PasswordHash, nil)
+	hc.HashPassword(u3Dto.Password).Return(u2.PasswordHash, nil)
+	hc.HashPassword(u4Dto.Password).Return(u2.PasswordHash, nil)
+
+	hc.CheckPasswordHash(u1.PasswordHash, u1Dto.Password).Return(true)
+	hc.CheckPasswordHash(u2.PasswordHash, u2Dto.Password).Return(true)
+	hc.CheckPasswordHash(u2.PasswordHash, u3Dto.Password).Return(true)
+	hc.CheckPasswordHash(u2.PasswordHash, u4Dto.Password).Return(true)
 
 	mr := db.EXPECT()
 
@@ -321,7 +346,7 @@ func TestAddOrderHandler(t *testing.T) {
 	mr.GetOrder(gomock.Any(), o2Dto).AnyTimes().Return(o2, nil)
 	mr.GetOrder(gomock.Any(), o3Dto).AnyTimes().Return(o3, nil)
 
-	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar())
+	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar(), time.Hour*1, hashc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -400,6 +425,7 @@ func TestGetOrdersHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
+	hashc := NewMockHashController(ctrl)
 
 	var test = "test"
 
@@ -417,13 +443,13 @@ func TestGetOrdersHandler(t *testing.T) {
 
 	u1Dto := &models.UserDTO{
 		Login:    test,
-		Password: models.EncodePassword(test),
+		Password: test,
 	}
 
 	u1 := &models.User{
-		ID:             "1",
-		Login:          test,
-		PasswordBase64: models.EncodePassword(test),
+		ID:           "1",
+		Login:        test,
+		PasswordHash: test,
 	}
 
 	mr := db.EXPECT()
@@ -431,7 +457,7 @@ func TestGetOrdersHandler(t *testing.T) {
 	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
 	mr.GetUploadedOrders(gomock.Any(), u1).AnyTimes().Return(ors, nil)
 
-	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar())
+	h, err := NewHandlers([]byte("keyAddOrder"), db, zap.L().Sugar(), time.Hour*1, hashc)
 	if err != nil {
 		t.Error(err)
 	}
