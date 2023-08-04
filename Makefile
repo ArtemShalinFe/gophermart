@@ -29,7 +29,7 @@ lint:
 	[ -d $(ROOT_DIR)/golangci-lint ] || mkdir -p $(ROOT_DIR)/golangci-lint
 	docker run --rm \
     -v $(ROOT_DIR):/app \
-    -v $(ROOT_DIR)/golangci-lint/.cache/golangci-lint/v1.53.3:/root/.cache \
+    -v $(ROOT_DIR)/golangci-lint/.cache:/root/.cache \
     -w /app \
     golangci/golangci-lint:v1.53.3 \
         golangci-lint run \

@@ -39,7 +39,6 @@ func InitServer(ctx context.Context, h *Handlers, cfg config.Config, log *zap.Su
 }
 
 func initRouter(h *Handlers) *chi.Mux {
-
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
 	router.Use(h.RequestLogger)

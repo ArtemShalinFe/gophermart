@@ -69,7 +69,7 @@ func (db *DB) getWithdrawals(ctx context.Context, tx pgx.Tx, userID string) (flo
 	WHERE userId = $1;`
 
 	var b float64
-	row := db.pool.QueryRow(ctx, sql, userID)
+	row := tx.QueryRow(ctx, sql, userID)
 	if err := row.Scan(&b); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return 0, fmt.Errorf("db GetWithdrawals err: %w", err)
