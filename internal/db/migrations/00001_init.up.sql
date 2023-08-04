@@ -20,7 +20,7 @@ create table orders(
 );
 -- История списания баланса пользователя
 create table withdrawals(
-    seq bigserial,
+    seq int generated always as identity,
     date timestamp with time zone not null,
     ordernumber numeric not null,
     userid uuid not null,
@@ -30,7 +30,7 @@ create table withdrawals(
 );
 -- Для хранения текущего баланса, чтобы не считать по balances
 create table currentbalances(
-    seq bigserial,
+    seq int generated always as identity,
     userid uuid unique not null,
     sum double precision not null,
     primary key (seq),

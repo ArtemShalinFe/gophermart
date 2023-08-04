@@ -9,15 +9,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 	"go.uber.org/zap"
+
+	"github.com/ArtemShalinFe/gophermart/internal/models"
 )
 
 type Storage interface {
 	AddUser(ctx context.Context, us *models.UserDTO) (*models.User, error)
 	GetUser(ctx context.Context, us *models.UserDTO) (*models.User, error)
-	GetCurrentBalance(ctx context.Context, userID string) (float64, error)
-	GetWithdrawals(ctx context.Context, userID string) (float64, error)
+	GetBalance(ctx context.Context, userID string) (*models.UserBalance, error)
 	GetWithdrawalList(ctx context.Context, userID string) ([]*models.UserWithdrawalsHistory, error)
 	AddWithdrawn(ctx context.Context, userID string, orderNumber string, sum float64) error
 	GetUploadedOrders(ctx context.Context, order *models.User) ([]*models.Order, error)
@@ -214,29 +214,14 @@ func (h *Handlers) GetBalance(ctx context.Context, w http.ResponseWriter, r *htt
 		return
 	}
 
-	c, err := u.GetUserBalance(ctx, h.store)
+	bl, err := u.GetBalance(ctx, h.store)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		h.log.Errorf("failed to get user current balance in the GetBalance request err: %w ", err)
 		return
 	}
 
-	wn, err := u.GetWithdrawals(ctx, h.store)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.log.Errorf("failed to get user withdrawals in the GetBalance request err: %w ", err)
-		return
-	}
-
-	resp := struct {
-		Current   float64 `json:"current"`
-		Withdrawn float64 `json:"withdrawn"`
-	}{
-		Current:   c,
-		Withdrawn: wn,
-	}
-
-	b, err := json.Marshal(&resp)
+	b, err := json.Marshal(&bl)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		h.log.Errorf("GetBalance marshal to json err: %w", err)

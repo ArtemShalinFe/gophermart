@@ -59,7 +59,8 @@ clean-data:
 # MOCKS
 .PHONY: mocks
 mocks:
-	mockgen -source=cmd/internal/server/handlers.go -destination=cmd/internal/server/mock_handlers.go -package server
-	
+	mockgen -source=internal/server/handlers.go -destination=internal/server/mock_handlers.go -package server
+
+.PHONY: clean-mocks
 clean-mocks:
-	rm cmd/internal/server/mock_handlers.go
+	rm internal/server/mock_handlers.go

@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+
+	"github.com/ArtemShalinFe/gophermart/internal/models"
 )
 
 func TestHandlers_Register(t *testing.T) {
@@ -564,8 +565,9 @@ func TestHandlers_GetBalance(t *testing.T) {
 
 	mr.GetUser(gomock.Any(), u1Dto).AnyTimes().Return(u1, nil)
 	mr.GetUser(gomock.Any(), u1Claims).AnyTimes().Return(u1, nil)
-	mr.GetWithdrawals(gomock.Any(), u1.ID).AnyTimes().Return(999.1, nil)
-	mr.GetCurrentBalance(gomock.Any(), u1.ID).AnyTimes().Return(99.9, nil)
+
+	ub := models.UserBalance{Current: 99.9, Withdrawn: 999.1}
+	mr.GetBalance(gomock.Any(), u1.ID).AnyTimes().Return(&ub, nil)
 
 	h, err := NewHandlers([]byte("keyGetBalance"), db, zap.L().Sugar(), time.Hour*1, hashc)
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
+	"github.com/ArtemShalinFe/gophermart/internal/models"
 )
 
 func (db *DB) AddUser(ctx context.Context, us *models.UserDTO) (*models.User, error) {

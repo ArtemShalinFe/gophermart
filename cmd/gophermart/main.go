@@ -13,10 +13,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/config"
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/db"
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/security"
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/server"
+	"github.com/ArtemShalinFe/gophermart/internal/config"
+	"github.com/ArtemShalinFe/gophermart/internal/db"
+	"github.com/ArtemShalinFe/gophermart/internal/security"
+	"github.com/ArtemShalinFe/gophermart/internal/server"
 )
 
 const (

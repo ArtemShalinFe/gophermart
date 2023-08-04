@@ -24,6 +24,11 @@ type UserWithdrawalsHistory struct {
 	Sum         float64   `json:"sum"`
 }
 
+type UserBalance struct {
+	Current   float64 `json:"current"`
+	Withdrawn float64 `json:"withdrawn"`
+}
+
 var ErrLoginIsBusy = errors.New("login is busy")
 var ErrUnknowUser = errors.New("unknow user")
 var ErrNotEnoughAccruals = errors.New("not enough accruals")
@@ -32,8 +37,7 @@ type UserStorage interface {
 	AddUser(ctx context.Context, us *UserDTO) (*User, error)
 	GetUser(ctx context.Context, us *UserDTO) (*User, error)
 	GetUploadedOrders(ctx context.Context, us *User) ([]*Order, error)
-	GetCurrentBalance(ctx context.Context, userID string) (float64, error)
-	GetWithdrawals(ctx context.Context, userID string) (float64, error)
+	GetBalance(ctx context.Context, userID string) (*UserBalance, error)
 	GetWithdrawalList(ctx context.Context, userID string) ([]*UserWithdrawalsHistory, error)
 }
 
@@ -69,20 +73,12 @@ func (u *User) GetUploadedOrders(ctx context.Context, db UserStorage) ([]*Order,
 	return ors, nil
 }
 
-func (u *User) GetUserBalance(ctx context.Context, db UserStorage) (float64, error) {
-	b, err := db.GetCurrentBalance(ctx, u.ID)
+func (u *User) GetBalance(ctx context.Context, db UserStorage) (*UserBalance, error) {
+	b, err := db.GetBalance(ctx, u.ID)
 	if err != nil {
-		return 0, fmt.Errorf("get user balance was failed err: %w", err)
+		return nil, fmt.Errorf("get balance was failed err: %w", err)
 	}
 	return b, nil
-}
-
-func (u *User) GetWithdrawals(ctx context.Context, db UserStorage) (float64, error) {
-	ws, err := db.GetWithdrawals(ctx, u.ID)
-	if err != nil {
-		return 0, fmt.Errorf("get withdrawals was failed err: %w", err)
-	}
-	return ws, nil
 }
 
 func (u *User) GetWithdrawalList(ctx context.Context, db UserStorage) ([]*UserWithdrawalsHistory, error) {

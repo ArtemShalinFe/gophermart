@@ -8,7 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
+	"github.com/ArtemShalinFe/gophermart/internal/models"
 )
 
 type Claims struct {

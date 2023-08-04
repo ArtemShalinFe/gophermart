@@ -10,9 +10,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/config"
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
 	"go.uber.org/zap"
+
+	"github.com/ArtemShalinFe/gophermart/internal/config"
+	"github.com/ArtemShalinFe/gophermart/internal/models"
 )
 
 type Accrual struct {

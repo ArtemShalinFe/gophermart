@@ -11,9 +11,9 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"go.uber.org/zap"
 
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/adapters"
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/config"
-	"github.com/ArtemShalinFe/gophermart/cmd/internal/models"
+	"github.com/ArtemShalinFe/gophermart/internal/adapters"
+	"github.com/ArtemShalinFe/gophermart/internal/config"
+	"github.com/ArtemShalinFe/gophermart/internal/models"
 )
 
 type Server struct {
@@ -39,7 +39,6 @@ func InitServer(ctx context.Context, h *Handlers, cfg config.Config, log *zap.Su
 }
 
 func initRouter(h *Handlers) *chi.Mux {
-	const orderPath = "/orders"
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
@@ -57,6 +56,8 @@ func initRouter(h *Handlers) *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Use(h.JwtMiddleware)
 
+			const orderPath = "/orders"
+
 			r.Post(orderPath, func(w http.ResponseWriter, r *http.Request) {
 				h.AddOrder(r.Context(), w, r)
 			})
@@ -68,12 +69,6 @@ func initRouter(h *Handlers) *chi.Mux {
 			r.Post("/balance/withdraw", func(w http.ResponseWriter, r *http.Request) {
 				h.AddBalanceWithdrawn(r.Context(), w, r)
 			})
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(h.JwtMiddleware)
-			// Автотесты "Яндекса" не позволяют сжимать результаты этих обработчиков.
-			// r.Use(CompressMiddleware)
 
 			r.Get(orderPath, func(w http.ResponseWriter, r *http.Request) {
 				h.GetOrders(r.Context(), w, r)
