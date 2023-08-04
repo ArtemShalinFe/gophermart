@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/gophermart/internal/config"
@@ -17,7 +19,7 @@ import (
 )
 
 type Accrual struct {
-	httpClient *http.Client
+	httpClient *retryablehttp.Client
 	log        *zap.SugaredLogger
 	host       string
 }
@@ -50,11 +52,28 @@ func (ae *AccrualErr) IsTooManyRequests() bool {
 }
 
 func NewAccrualClient(cfg config.Config, log *zap.SugaredLogger) *Accrual {
+	client := retryablehttp.NewClient()
+	client.RetryMax = 3
+	client.CheckRetry = checkRetry
+	client.Backoff = backoff
+
 	return &Accrual{
 		host:       cfg.Accrual,
 		log:        log,
-		httpClient: &http.Client{},
+		httpClient: client,
 	}
+}
+
+func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	check, err := retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	if err != nil {
+		return false, fmt.Errorf("accrual error in default retry policy : %w", err)
+	}
+	return check, nil
+}
+
+func backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
+	return retryablehttp.LinearJitterBackoff(min, max, attemptNum, resp)
 }
 
 func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*models.OrderAccrual, *AccrualErr) {
@@ -99,13 +118,13 @@ func (a *Accrual) GetOrderAccrual(ctx context.Context, order *models.Order) (*mo
 	return &oa, nil
 }
 
-func (a *Accrual) request(ctx context.Context, order *models.Order) (*http.Request, error) {
+func (a *Accrual) request(ctx context.Context, order *models.Order) (*retryablehttp.Request, error) {
 	url, err := url.JoinPath(a.host, "/api/orders/", order.Number)
 	if err != nil {
 		return nil, fmt.Errorf("failed build url err: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed build accrual request err: %w", err)
 	}
